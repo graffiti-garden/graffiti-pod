@@ -21,7 +21,7 @@ export class StoreService {
   async getObject(
     webId: string,
     name: string,
-    selfWebId: string,
+    selfWebId: string | null,
   ): Promise<GraffitiObject> {
     return this.objectModel.findOne({
       webId,

@@ -3,22 +3,10 @@ import { StoreService } from "./store.service";
 import { GraffitiObject } from "../schemas/object.schema";
 import { RootMongooseModule } from "../app.module";
 import { GraffitiObjectMongooseModule } from "../schemas/object.schema";
+import { randomString, randomGraffitiObject } from "../test/utils";
 
 describe("StoreService", () => {
   let service: StoreService;
-
-  function randomString() {
-    return Math.random().toString(36).substring(7);
-  }
-
-  function randomGraffitiObject() {
-    const go = new GraffitiObject();
-    go.webId = randomString();
-    go.name = randomString();
-    go.value = { [randomString()]: randomString() };
-    go.channels = [];
-    return go;
-  }
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

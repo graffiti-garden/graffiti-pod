@@ -24,15 +24,21 @@ export class StoreController {
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
     @Body() object: any,
-    @AccessControlList() acl: string[] | undefined,
     @Channels() channels: string[],
+    @AccessControlList() acl: string[] | undefined,
     @WebId() selfWebId: string | null,
   ) {
     if (!selfWebId) {
-      throw new Error("You must be authenticated to store objects");
+      throw new HttpException(
+        "You must be authenticated",
+        HttpStatus.UNAUTHORIZED,
+      );
     }
     if (webId !== selfWebId) {
-      throw new Error("You can only store objects for yourself");
+      throw new HttpException(
+        "You can only store your own objects",
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     // Create an instance of a GraffitiObject
@@ -49,7 +55,7 @@ export class StoreController {
   async getObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
-    @WebId() selfWebId: string,
+    @WebId() selfWebId: string | null,
     @Response({ passthrough: true }) response: FastifyReply,
   ) {
     const graffitiObject = await this.storeService.getObject(

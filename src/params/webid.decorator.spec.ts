@@ -1,18 +1,10 @@
-import "dotenv/config";
-import { Session } from "@inrupt/solid-client-authn-node";
 import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
 import { WebId } from "./webid.decorator";
 import { createServer } from "http";
 import { ExecutionContextHost } from "@nestjs/core/helpers/execution-context-host";
+import { solidLogin } from "../test/utils";
 
 const port = 4000;
-
-const clientId = process.env.SOLID_CLIENT_ID;
-const clientSecret = process.env.SOLID_CLIENT_SECRET;
-const oidcIssuer = process.env.SOLID_OIDC_ISSUER;
-if (!clientId || !clientSecret || !oidcIssuer) {
-  throw "You haven't defined a solid client id, client secret or oidc issuer! See the Readme for more information.";
-}
 
 describe("WebId", () => {
   function getWebIdFactory(decorator: Function) {
@@ -28,15 +20,9 @@ describe("WebId", () => {
   let authenticatedFetch: typeof fetch;
 
   beforeAll(async () => {
-    // Login to Solid
-    const session = new Session();
-    await session.login({
-      oidcIssuer,
-      clientId,
-      clientSecret,
-    });
-    authenticatedFetch = session.fetch;
-    webId = session.info.webId;
+    const login = await solidLogin();
+    authenticatedFetch = login.fetch;
+    webId = login.webId;
   });
 
   it("plain fetch", async () => {

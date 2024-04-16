@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  graffiti-pod:
+    container_name: graffiti-pod
+    build: .
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      - mongo
+    ports:
+      - 3000:3000
+
+  mongo:
+    image: mongo:7.0.8-jammy
+    container_name: graffiti-mongo
+    restart: always
+    command: "--bind_ip_all --replSet rs0 --quiet --logpath /dev/null --setParameter logLevel=0"
+    volumes:
+      - ./config/mongo:/docker-entrypoint-initdb.d/
+    extra_hosts:
+      - "mongo:127.0.0.1"

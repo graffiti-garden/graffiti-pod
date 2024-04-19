@@ -2,9 +2,13 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { StoreService } from "./store.service";
 import { RootMongooseModule } from "../app.module";
 import { GraffitiObjectMongooseModule } from "../schemas/object.schema";
-import { randomString, randomGraffitiObject } from "../test/utils";
-import { Error as MongooseError } from "mongoose";
+import {
+  randomString,
+  randomGraffitiObject,
+  responseMock,
+} from "../test/utils";
 import { HttpException } from "@nestjs/common";
+import { Operation } from "fast-json-patch";
 
 describe("StoreService", () => {
   let service: StoreService;
@@ -16,6 +20,62 @@ describe("StoreService", () => {
     }).compile();
 
     service = module.get<StoreService>(StoreService);
+  });
+
+  it("unauthorized", async () => {
+    try {
+      service.validateWebId(randomString(), null);
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(401);
+    }
+    expect.assertions(2);
+  });
+
+  it("forbidden", async () => {
+    try {
+      service.validateWebId(randomString(), randomString());
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(403);
+    }
+    expect.assertions(2);
+  });
+
+  it("authorized", async () => {
+    const webId = randomString();
+    expect(service.validateWebId(webId, webId)).toBeUndefined();
+  });
+
+  it("return same owner", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    go.acl = [randomString(), randomString()];
+    const response = responseMock();
+    const returned = service.returnObject(go, go.webId, response);
+    expect(returned).toStrictEqual(go.value);
+    expect(response.getHeader("Channels")).toStrictEqual(go.channels);
+    expect(response.getHeader("Access-Control-List")).toStrictEqual(go.acl);
+  });
+
+  it("return different owner", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    go.acl = [randomString(), randomString()];
+    const response = responseMock();
+    const returned = service.returnObject(go, randomString(), response);
+    expect(returned).toStrictEqual(go.value);
+    expect(response.getHeader("Channels")).toBeUndefined();
+    expect(response.getHeader("Access-Control-List")).toBeUndefined();
+  });
+
+  it("return null", async () => {
+    try {
+      service.returnObject(null, randomString(), responseMock());
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(404);
+    }
   });
 
   for (const modification of [
@@ -122,7 +182,7 @@ describe("StoreService", () => {
     await service.putObject(go);
     const patched = await service.patchObject(go.webId, go.name, [
       { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
-      { op: "replace", path: `/newthing`, value: "new" },
+      { op: "add", path: `/newthing`, value: "new" },
     ]);
     expect(patched.value).toStrictEqual({
       [Object.keys(go.value)[0]]: 42,
@@ -159,6 +219,26 @@ describe("StoreService", () => {
     expect.assertions(4);
   });
 
+  it("invalid patch", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+
+    const patch: Operation[] = [
+      { op: "add", path: "/root", value: [] },
+      { op: "add", path: "/root/2", value: 2 }, // out of bounds
+    ];
+
+    try {
+      const patched = await service.patchObject(go.webId, go.name, patch);
+      console.log(patched);
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(400);
+    }
+
+    expect.assertions(2);
+  });
+
   it("patch nonexistant object", async () => {
     const patched = await service.patchObject(randomString(), randomString(), [
       { op: "replace", path: "/test", value: 0 },
@@ -169,6 +249,7 @@ describe("StoreService", () => {
 
   it("concurrent patches", async () => {
     const go = randomGraffitiObject();
+    go.value["something"] = 1;
     await service.putObject(go);
 
     // Patch at the same time

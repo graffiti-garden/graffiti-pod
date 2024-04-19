@@ -75,10 +75,12 @@ export class StoreService {
     const doc = await this.objectModel.findOne({ webId, name });
     if (!doc) return doc;
     try {
-      doc.value = applyPatch(doc.value, jsonPatch).newDocument;
+      doc.value = applyPatch(doc.value, jsonPatch, true).newDocument;
     } catch (e) {
       if (e.name === "TEST_OPERATION_FAILED") {
         throw new HttpException(e.message, HttpStatus.PRECONDITION_FAILED);
+      } else if (e instanceof JsonPatchError) {
+        throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
       } else {
         throw e;
       }

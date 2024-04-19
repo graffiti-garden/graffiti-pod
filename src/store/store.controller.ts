@@ -8,7 +8,7 @@ import { GraffitiObject } from "../schemas/object.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 
-@Controller("store/:webId/:name")
+@Controller("s/:webId/:name")
 export class StoreController {
   constructor(private storeService: StoreService) {}
 
@@ -68,11 +68,7 @@ export class StoreController {
     @WebId() selfWebId: string | null,
     @Response({ passthrough: true }) response: FastifyReply,
   ) {
-    const graffitiObject = await this.storeService.getObject(
-      webId,
-      name,
-      selfWebId,
-    );
-    return this.storeService.returnObject(graffitiObject, selfWebId, response);
+    const gotten = await this.storeService.getObject(webId, name, selfWebId);
+    return this.storeService.returnObject(gotten, selfWebId, response);
   }
 }

@@ -1,7 +1,9 @@
 import { Model } from "mongoose";
-import { Injectable } from "@nestjs/common";
+import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { GraffitiObject } from "../schemas/object.schema";
+import { applyPatch, JsonPatchError } from "fast-json-patch";
+import type { Operation } from "fast-json-patch";
 
 @Injectable()
 export class StoreService {
@@ -18,12 +20,41 @@ export class StoreService {
     );
   }
 
+  async deleteObject(webId: string, name: string): Promise<GraffitiObject> {
+    return await this.objectModel.findOneAndDelete({ webId, name });
+  }
+
+  async patchObject(
+    webId: string,
+    name: string,
+    jsonPatch: Operation[],
+  ): Promise<GraffitiObject> {
+    const doc = await this.objectModel.findOne({ webId, name });
+    if (!doc) {
+      throw new HttpException(
+        "The doc you're trying to patch can't be found.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    try {
+      doc.value = applyPatch(doc.value, jsonPatch).newDocument;
+    } catch (e) {
+      if (e instanceof JsonPatchError) {
+        throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      } else {
+        throw new HttpException("Bad request.", HttpStatus.BAD_REQUEST);
+      }
+    }
+    doc.markModified("value");
+    return await doc.save({ validateBeforeSave: true });
+  }
+
   async getObject(
     webId: string,
     name: string,
     selfWebId: string | null,
   ): Promise<GraffitiObject> {
-    return this.objectModel.findOne({
+    return await this.objectModel.findOne({
       webId,
       name,
       $or: [

@@ -15,11 +15,11 @@ import { GraffitiObject } from "../schemas/object.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 
-@Controller("store")
+@Controller("store/:webId/:name")
 export class StoreController {
   constructor(private storeService: StoreService) {}
 
-  @Put("user/:webId/store/:name")
+  @Put()
   async putObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -51,7 +51,7 @@ export class StoreController {
     await this.storeService.putObject(graffitiObject);
   }
 
-  @Get("user/:webId/store/:name")
+  @Get()
   async getObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,

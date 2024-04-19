@@ -1,9 +1,10 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { StoreService } from "./store.service";
-import { GraffitiObject } from "../schemas/object.schema";
 import { RootMongooseModule } from "../app.module";
 import { GraffitiObjectMongooseModule } from "../schemas/object.schema";
 import { randomString, randomGraffitiObject } from "../test/utils";
+import { Error as MongooseError } from "mongoose";
+import { HttpException } from "@nestjs/common";
 
 describe("StoreService", () => {
   let service: StoreService;
@@ -93,5 +94,83 @@ describe("StoreService", () => {
     await service.putObject(go);
     const result = await service.getObject(go.webId, go.name, webId);
     expect(result).toBeNull();
+  });
+
+  it("put, delete, get", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    await service.deleteObject(go.webId, go.name);
+    const result = await service.getObject(go.webId, go.name, go.webId);
+    expect(result).toBeNull();
+  });
+
+  it("patch simple", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    await service.patchObject(go.webId, go.name, [
+      { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
+      { op: "replace", path: `/newthing`, value: "new" },
+    ]);
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await service.getObject(go.webId, go.name, go.webId);
+    expect(result.value).toStrictEqual({
+      [Object.keys(go.value)[0]]: 42,
+      newthing: "new",
+    });
+  });
+
+  it("patch 'increment' with test", async () => {
+    const go = randomGraffitiObject();
+    go.value = { counter: 1 };
+    await service.putObject(go);
+
+    await service.patchObject(go.webId, go.name, [
+      { op: "test", path: "/counter", value: 1 },
+      { op: "replace", path: "/counter", value: 2 },
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await service.getObject(go.webId, go.name, go.webId);
+    expect(result.value).toHaveProperty("counter", 2);
+
+    await expect(
+      service.patchObject(go.webId, go.name, [
+        { op: "test", path: "/counter", value: 1 },
+        { op: "replace", path: "/counter", value: 2 },
+      ]),
+    ).rejects.toThrow(HttpException);
+  });
+
+  it("patch nonexistant object", async () => {
+    await expect(
+      service.patchObject(randomString(), randomString(), [
+        { op: "replace", path: "/test", value: 0 },
+      ]),
+    ).rejects.toThrow(HttpException);
+  });
+
+  it("concurrent patches", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+
+    // Patch at the same time
+    const jobs = [];
+    for (let i = 0; i < 1000; i++) {
+      jobs.push(
+        service.patchObject(go.webId, go.name, [
+          { op: "replace", path: "/something", value: 0 },
+        ]),
+      );
+    }
+
+    const results = await Promise.allSettled(jobs);
+    let numErrors = 0;
+    for (const result of results) {
+      if (result.status === "rejected") {
+        numErrors++;
+        expect(result.reason).toBeInstanceOf(MongooseError.VersionError);
+      }
+    }
+    expect(numErrors).toBeGreaterThan(0);
   });
 });

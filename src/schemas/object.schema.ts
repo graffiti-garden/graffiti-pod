@@ -17,7 +17,9 @@ function stringArraySchema(name: string, required = false) {
   };
 }
 
-@Schema()
+@Schema({
+  optimisticConcurrency: true,
+})
 export class GraffitiObject {
   @Prop({ required: true })
   webId: string;

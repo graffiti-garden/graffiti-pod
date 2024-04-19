@@ -35,7 +35,14 @@ describe("StoreService", () => {
     it("put invalid data", async () => {
       const go = randomGraffitiObject();
       modification(go);
-      await expect(service.putObject(go)).rejects.toThrow();
+
+      expect.assertions(2);
+      try {
+        await service.putObject(go);
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        expect(e.status).toBe(422);
+      }
     });
   }
 
@@ -99,25 +106,31 @@ describe("StoreService", () => {
   it("put, delete, get", async () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
-    await service.deleteObject(go.webId, go.name);
+    const deleted = await service.deleteObject(go.webId, go.name);
+    expect(deleted.value).toStrictEqual(go.value);
     const result = await service.getObject(go.webId, go.name, go.webId);
     expect(result).toBeNull();
+  });
+
+  it("delete non existant object", async () => {
+    const deleted = await service.deleteObject(randomString(), randomString());
+    expect(deleted).toBeNull();
   });
 
   it("patch simple", async () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
-    await service.patchObject(go.webId, go.name, [
+    const patched = await service.patchObject(go.webId, go.name, [
       { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
       { op: "replace", path: `/newthing`, value: "new" },
     ]);
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result.value).toStrictEqual({
+    expect(patched.value).toStrictEqual({
       [Object.keys(go.value)[0]]: 42,
       newthing: "new",
     });
+
+    const result = await service.getObject(go.webId, go.name, go.webId);
+    expect(result.value).toStrictEqual(patched.value);
   });
 
   it("patch 'increment' with test", async () => {
@@ -125,28 +138,33 @@ describe("StoreService", () => {
     go.value = { counter: 1 };
     await service.putObject(go);
 
-    await service.patchObject(go.webId, go.name, [
+    const patched = await service.patchObject(go.webId, go.name, [
       { op: "test", path: "/counter", value: 1 },
       { op: "replace", path: "/counter", value: 2 },
     ]);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(patched.value).toHaveProperty("counter", 2);
     const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result.value).toHaveProperty("counter", 2);
+    expect(result.value).toStrictEqual(patched.value);
 
-    await expect(
-      service.patchObject(go.webId, go.name, [
+    try {
+      await service.patchObject(go.webId, go.name, [
         { op: "test", path: "/counter", value: 1 },
         { op: "replace", path: "/counter", value: 2 },
-      ]),
-    ).rejects.toThrow(HttpException);
+      ]);
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(412);
+    }
+
+    expect.assertions(4);
   });
 
   it("patch nonexistant object", async () => {
-    await expect(
-      service.patchObject(randomString(), randomString(), [
-        { op: "replace", path: "/test", value: 0 },
-      ]),
-    ).rejects.toThrow(HttpException);
+    const patched = await service.patchObject(randomString(), randomString(), [
+      { op: "replace", path: "/test", value: 0 },
+    ]);
+
+    expect(patched).toBeNull();
   });
 
   it("concurrent patches", async () => {
@@ -168,7 +186,8 @@ describe("StoreService", () => {
     for (const result of results) {
       if (result.status === "rejected") {
         numErrors++;
-        expect(result.reason).toBeInstanceOf(MongooseError.VersionError);
+        expect(result.reason).toBeInstanceOf(HttpException);
+        expect(result.reason.status).toBe(409);
       }
     }
     expect(numErrors).toBeGreaterThan(0);

@@ -1,5 +1,14 @@
-import { Model, Error as MongooseError } from "mongoose";
-import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
+import { Model } from "mongoose";
+import {
+  Injectable,
+  UnauthorizedException,
+  ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+  PreconditionFailedException,
+  BadRequestException,
+  ConflictException,
+} from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { GraffitiObject } from "../schemas/object.schema";
 import { JsonPatchError, applyPatch } from "fast-json-patch";
@@ -15,16 +24,10 @@ export class StoreService {
 
   validateWebId(targetWebId: string, selfWebId: string | null) {
     if (!selfWebId) {
-      throw new HttpException(
-        "You must be authenticated",
-        HttpStatus.UNAUTHORIZED,
-      );
+      throw new UnauthorizedException();
     }
     if (targetWebId !== selfWebId) {
-      throw new HttpException(
-        "You can only store your own objects",
-        HttpStatus.FORBIDDEN,
-      );
+      throw new ForbiddenException();
     }
   }
 
@@ -34,7 +37,7 @@ export class StoreService {
     response: FastifyReply,
   ): Object {
     if (!graffitiObject) {
-      throw new HttpException("Not found", HttpStatus.NOT_FOUND);
+      throw new NotFoundException();
     } else {
       if (selfWebId === graffitiObject.webId) {
         response.header("Access-Control-List", graffitiObject.acl);
@@ -53,7 +56,7 @@ export class StoreService {
       );
     } catch (e) {
       if (e.name === "ValidationError") {
-        throw new HttpException(e.message, HttpStatus.UNPROCESSABLE_ENTITY);
+        throw new UnprocessableEntityException(e.message);
       } else {
         throw e;
       }
@@ -78,9 +81,9 @@ export class StoreService {
       doc.value = applyPatch(doc.value, jsonPatch, true).newDocument;
     } catch (e) {
       if (e.name === "TEST_OPERATION_FAILED") {
-        throw new HttpException(e.message, HttpStatus.PRECONDITION_FAILED);
+        throw new PreconditionFailedException(e.message);
       } else if (e instanceof JsonPatchError) {
-        throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+        throw new BadRequestException(e.message);
       } else {
         throw e;
       }
@@ -90,10 +93,7 @@ export class StoreService {
       return await doc.save({ validateBeforeSave: true });
     } catch (e) {
       if (e.name == "VersionError") {
-        throw new HttpException(
-          "Concurrent write, try again.",
-          HttpStatus.CONFLICT,
-        );
+        throw new ConflictException("Concurrent write, try again.");
       } else {
         throw e;
       }

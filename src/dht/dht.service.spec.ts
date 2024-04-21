@@ -1,5 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { DhtService } from "./dht.service";
+import { randomString } from "../test/utils";
 
 describe("DhtService", () => {
   let service: DhtService;
@@ -9,13 +10,19 @@ describe("DhtService", () => {
     }).compile();
     service = module.get<DhtService>(DhtService);
   });
+  afterEach(async () => {
+    await service.close();
+  });
 
   it("hash", () => {
     const infoHash = service.channelToInfoHash("test");
-    console.log(infoHash);
+    expect(infoHash).toHaveLength(40);
   });
 
-  it("announce", async () => {
-    await service.announce("test");
+  it("lookup random peer", async () => {
+    const channel = randomString();
+    await service.announce(channel);
+    const peers = await service.lookup(channel);
+    expect(peers).toHaveLength(1);
   }, 100000);
 });

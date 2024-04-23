@@ -56,7 +56,7 @@ export class DhtService {
     const infoHash = this.channelToInfoHash(channel);
     const interval = setInterval(
       this.announceCallback.bind(this, infoHash),
-      ANNOUNCE_INTERVAL,
+      ANNOUNCE_INTERVAL * (1 + Math.random()),
     );
     this.announceIntervals.set(channel, interval);
     await this.announceCallback(infoHash);

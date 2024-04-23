@@ -2,6 +2,8 @@ import "dotenv/config";
 import { Session } from "@inrupt/solid-client-authn-node";
 import { GraffitiObject } from "../schemas/object.schema";
 import { FastifyReply } from "fastify";
+import { randomBytes } from "@noble/hashes/utils";
+import { bytesToHex } from "@noble/curves/abstract/utils";
 
 const clientId = process.env.SOLID_CLIENT_ID;
 const clientSecret = process.env.SOLID_CLIENT_SECRET;
@@ -24,8 +26,8 @@ export async function solidLogin() {
   };
 }
 
-export function randomString() {
-  return Math.random().toString(36).substring(7);
+export function randomString(numBytes = 16) {
+  return bytesToHex(randomBytes(numBytes));
 }
 
 export function randomGraffitiObject() {

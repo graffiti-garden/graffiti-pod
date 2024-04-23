@@ -7,18 +7,13 @@ jest.mock("../constants", () => ({
   STREAM_REQUEST_EXPIRE_TIME: 500,
 }));
 import { STREAM_REQUEST_EXPIRE_TIME } from "../constants";
-import { ScheduleModule } from "@nestjs/schedule";
 
 describe("StreamRequestService", () => {
   let service: StreamRequestService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [
-        RootMongooseModule,
-        StreamRequestMongooseModule,
-        ScheduleModule.forRoot(),
-      ],
+      imports: [RootMongooseModule, StreamRequestMongooseModule],
       providers: [StreamRequestService],
     }).compile();
 
@@ -54,13 +49,5 @@ describe("StreamRequestService", () => {
       setTimeout(resolve, STREAM_REQUEST_EXPIRE_TIME * 1.1),
     );
     await expect(service.verifyRequest(webId, challenge)).resolves.toBe(false);
-  });
-
-  it("just wait", async () => {
-    const webId = randomString();
-    await service.makeRequest(webId);
-    await new Promise((resolve) =>
-      setTimeout(resolve, STREAM_REQUEST_EXPIRE_TIME * 5),
-    );
   });
 });

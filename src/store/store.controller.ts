@@ -4,7 +4,7 @@ import { DecodeParam } from "../params/decodeparam.decorator";
 import { WebId } from "../params/webid.decorator";
 import { Channels } from "../params/channels.decorator";
 import { AccessControlList } from "../params/acl.decorator";
-import { GraffitiObject } from "../schemas/object.schema";
+import { StoreSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 
@@ -16,7 +16,7 @@ export class StoreController {
   async putObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
-    @Body() object: any,
+    @Body() value: any,
     @Channels() channels: string[],
     @AccessControlList() acl: string[] | undefined,
     @WebId() selfWebId: string | null,
@@ -25,14 +25,14 @@ export class StoreController {
     this.storeService.validateWebId(webId, selfWebId);
 
     // Create an instance of a GraffitiObject
-    const graffitiObject = new GraffitiObject();
-    graffitiObject.webId = webId;
-    graffitiObject.name = name;
-    graffitiObject.value = object;
-    graffitiObject.channels = channels;
-    graffitiObject.acl = acl;
+    const object = new StoreSchema();
+    object.webId = webId;
+    object.name = name;
+    object.value = value;
+    object.channels = channels;
+    object.acl = acl;
 
-    const putted = await this.storeService.putObject(graffitiObject);
+    const putted = await this.storeService.putObject(object);
     return this.storeService.returnObject(putted, selfWebId, response);
   }
 

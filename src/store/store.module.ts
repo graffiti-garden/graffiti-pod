@@ -1,11 +1,12 @@
 import { Module } from "@nestjs/common";
 import { StoreController } from "./store.controller";
 import { StoreService } from "./store.service";
-import { GraffitiObjectMongooseModule } from "../schemas/object.schema";
+import { StoreMongooseModule } from "./store.schema";
+import { InfoHashService } from "../info-hash/info-hash.service";
 
 @Module({
-  imports: [GraffitiObjectMongooseModule],
+  imports: [StoreMongooseModule],
   controllers: [StoreController],
-  providers: [StoreService],
+  providers: [StoreService, InfoHashService],
 })
 export class StoreModule {}

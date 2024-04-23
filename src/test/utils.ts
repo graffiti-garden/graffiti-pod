@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Session } from "@inrupt/solid-client-authn-node";
-import { GraffitiObject } from "../schemas/object.schema";
+import { StoreSchema } from "../store/store.schema";
 import { FastifyReply } from "fastify";
 import { randomBytes } from "@noble/hashes/utils";
 import { bytesToHex } from "@noble/curves/abstract/utils";
@@ -31,7 +31,7 @@ export function randomString(numBytes = 16) {
 }
 
 export function randomGraffitiObject() {
-  const go = new GraffitiObject();
+  const go = new StoreSchema();
   go.webId = randomString();
   go.name = randomString();
   go.value = { [randomString()]: randomString() };

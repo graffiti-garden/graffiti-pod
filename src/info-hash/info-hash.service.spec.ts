@@ -43,4 +43,8 @@ describe("InfoHashService", () => {
       service.verifyInfoHashAndPok(infoHash, randomString(64), challenge),
     ).toBe(false);
   });
+
+  it("invalid pok", () => {
+    expect(service.verifyInfoHashAndPok(infoHash, "", challenge)).toBe(false);
+  });
 });

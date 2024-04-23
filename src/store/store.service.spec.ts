@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { StoreService } from "./store.service";
 import { RootMongooseModule } from "../app.module";
-import { GraffitiObjectMongooseModule } from "../schemas/object.schema";
+import { StoreMongooseModule } from "./store.schema";
 import {
   randomString,
   randomGraffitiObject,
@@ -9,14 +9,15 @@ import {
 } from "../test/utils";
 import { HttpException } from "@nestjs/common";
 import { Operation } from "fast-json-patch";
+import { InfoHashService } from "../info-hash/info-hash.service";
 
 describe("StoreService", () => {
   let service: StoreService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [RootMongooseModule, GraffitiObjectMongooseModule],
-      providers: [StoreService],
+      imports: [RootMongooseModule, StoreMongooseModule],
+      providers: [StoreService, InfoHashService],
     }).compile();
 
     service = module.get<StoreService>(StoreService);
@@ -96,6 +97,40 @@ describe("StoreService", () => {
       const go = randomGraffitiObject();
       modification(go);
 
+      expect.assertions(2);
+      try {
+        await service.putObject(go);
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        expect(e.status).toBe(422);
+      }
+    });
+  }
+
+  it("put valid data", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString(), "🪿🕰️"];
+    await service.putObject(go);
+  });
+
+  it("good info hashes", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString()];
+    go.infoHashes = [randomString(32)];
+    await service.putObject(go);
+  });
+
+  for (const infoHashes of [
+    [],
+    [randomString(), randomString()],
+    ["🪿"],
+    [randomString(31)],
+    [randomString(33)],
+  ]) {
+    it("bad info hashes", async () => {
+      const go = randomGraffitiObject();
+      go.channels = [randomString()];
+      go.infoHashes = infoHashes;
       expect.assertions(2);
       try {
         await service.putObject(go);

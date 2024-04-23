@@ -10,16 +10,18 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { GraffitiObject } from "../schemas/object.schema";
+import { StoreSchema } from "./store.schema";
 import { JsonPatchError, applyPatch } from "fast-json-patch";
 import type { Operation } from "fast-json-patch";
 import { FastifyReply } from "fastify";
+import { InfoHashService } from "../info-hash/info-hash.service";
 
 @Injectable()
 export class StoreService {
   constructor(
-    @InjectModel(GraffitiObject.name)
-    private objectModel: Model<GraffitiObject>,
+    @InjectModel(StoreSchema.name)
+    private storeModel: Model<StoreSchema>,
+    private infoHashService: InfoHashService,
   ) {}
 
   validateWebId(targetWebId: string, selfWebId: string | null) {
@@ -32,24 +34,37 @@ export class StoreService {
   }
 
   returnObject(
-    graffitiObject: GraffitiObject | null,
+    object: StoreSchema | null,
     selfWebId: string | null,
     response: FastifyReply,
   ): Object {
-    if (!graffitiObject) {
+    if (!object) {
       throw new NotFoundException();
     } else {
-      if (selfWebId === graffitiObject.webId) {
-        response.header("Access-Control-List", graffitiObject.acl);
-        response.header("Channels", graffitiObject.channels);
+      if (selfWebId === object.webId) {
+        response.header("Access-Control-List", object.acl);
+        response.header("Channels", object.channels);
       }
-      return graffitiObject.value;
+      return object.value;
     }
   }
 
-  async putObject(object: GraffitiObject): Promise<GraffitiObject | null> {
+  async putObject(object: StoreSchema): Promise<StoreSchema | null> {
+    // Convert channels to info hashes, if not already
+    if (!object.infoHashes) {
+      if (!object.channels) {
+        throw new UnprocessableEntityException("Channels are required");
+      }
+      object.infoHashes = object.channels.map<string>((channel: any) => {
+        if (typeof channel !== "string" || !channel) {
+          throw new UnprocessableEntityException("Channels must be strings");
+        }
+        return this.infoHashService.toInfoHash(channel);
+      });
+    }
+
     try {
-      return await this.objectModel.findOneAndReplace(
+      return await this.storeModel.findOneAndReplace(
         { webId: object.webId, name: object.name },
         object,
         { upsert: true, runValidators: true },
@@ -63,19 +78,16 @@ export class StoreService {
     }
   }
 
-  async deleteObject(
-    webId: string,
-    name: string,
-  ): Promise<GraffitiObject | null> {
-    return await this.objectModel.findOneAndDelete({ webId, name });
+  async deleteObject(webId: string, name: string): Promise<StoreSchema | null> {
+    return await this.storeModel.findOneAndDelete({ webId, name });
   }
 
   async patchObject(
     webId: string,
     name: string,
     jsonPatch: Operation[],
-  ): Promise<GraffitiObject | null> {
-    const doc = await this.objectModel.findOne({ webId, name });
+  ): Promise<StoreSchema | null> {
+    const doc = await this.storeModel.findOne({ webId, name });
     if (!doc) return doc;
     try {
       doc.value = applyPatch(doc.value, jsonPatch, true).newDocument;
@@ -104,8 +116,8 @@ export class StoreService {
     webId: string,
     name: string,
     selfWebId: string | null,
-  ): Promise<GraffitiObject | null> {
-    return await this.objectModel.findOne({
+  ): Promise<StoreSchema | null> {
+    return await this.storeModel.findOne({
       webId,
       name,
       $or: [
@@ -115,4 +127,10 @@ export class StoreService {
       ],
     });
   }
+
+  // async * query(infoHashes: string[], query?: JsonSchema, limit?: number) {
+  //   await this.storeModel.find({
+  //     infoHashes, value: { $jsonQuery: query }
+  //   })
+  // })
 }

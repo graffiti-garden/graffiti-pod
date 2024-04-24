@@ -25,6 +25,8 @@
     "@solid/access-token-verifier": "^2.1.0",
     "@types/json-schema": "^7.0.15",
     "bittorrent-dht": "^11.0.5",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "fast-json-patch": "^3.1.1",
     "mongoose": "^8.3.1"
   },
@@ -36,6 +38,7 @@
     "dotenv": "^16.4.5",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
+    "socket.io-client": "^4.7.5",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.4"

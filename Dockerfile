@@ -6,4 +6,6 @@ RUN npm install
 
 COPY . .
 
-CMD npm run test
+CMD npm run test:watch stream.gateway
+# CMD npm run start
+# CMD npm run test

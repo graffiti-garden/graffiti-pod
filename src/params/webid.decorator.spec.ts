@@ -23,6 +23,9 @@ describe("WebId", () => {
   beforeAll(async () => {
     const login = await solidLogin();
     authenticatedFetch = login.fetch;
+    if (!login.webId) {
+      throw "No webId in login object";
+    }
     webId = login.webId;
   });
 
@@ -61,7 +64,7 @@ describe("WebId", () => {
   test("invalid authorization", async () => {
     const server = createServer(async (request, response) => {
       // Remove the last charachter of the authorization header
-      request.headers.authorization = request.headers.authorization.slice(
+      request.headers.authorization = request.headers.authorization?.slice(
         0,
         -1,
       );
@@ -84,7 +87,7 @@ describe("WebId", () => {
   test("invalid dpop", async () => {
     const server = createServer(async (request, response) => {
       // Remove the last charachter of the dpop header
-      request.headers.dpop = request.headers.dpop.slice(0, -1);
+      request.headers.dpop = request.headers.dpop?.slice(0, -1);
       const ctx = new ExecutionContextHost([request, response]);
       const factory = getWebIdFactory(WebId);
       try {

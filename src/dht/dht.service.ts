@@ -10,7 +10,7 @@ const ANNOUNCE_INTERVAL = 60 * 60 * 1000;
 export class DhtService {
   dht: any;
   initializedPromise: Promise<void>;
-  reverseDnsCache = new Map<string, Promise<string>>();
+  reverseDnsCache = new Map<string, Promise<string | null>>();
   announceIntervals = new Map<string, NodeJS.Timeout>();
 
   constructor() {
@@ -85,7 +85,7 @@ export class DhtService {
     if (this.reverseDnsCache.has(host)) return;
     this.reverseDnsCache.set(
       host,
-      new Promise<string>((resolve) => {
+      new Promise<string | null>((resolve) => {
         dns.lookupService(host, 443, (err: Error, hostname: string) => {
           if (
             err ||
@@ -125,8 +125,10 @@ export class DhtService {
     // and filter out failed lookups
     return (
       await Promise.all(
-        Array.from(peers).map((peer) => this.reverseDnsCache.get(peer)),
+        Array.from(peers)
+          .map((peer) => this.reverseDnsCache.get(peer))
+          .flatMap((r) => (r ? [r] : [])),
       )
-    ).filter((result) => result !== null);
+    ).flatMap((r) => (r ? [r] : []));
   }
 }

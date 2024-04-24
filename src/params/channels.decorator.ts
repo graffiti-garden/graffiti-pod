@@ -5,7 +5,7 @@ import type { IncomingMessage } from "http";
 export const Channels = createParamDecorator(
   (_, ctx: ExecutionContext): string[] => {
     const request = ctx.switchToHttp().getRequest() as IncomingMessage;
-    if ("channels" in request.headers) {
+    if ("channels" in request.headers && request.headers.channels) {
       if (Array.isArray(request.headers.channels)) {
         return request.headers.channels;
       } else {

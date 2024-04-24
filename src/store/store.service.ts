@@ -135,6 +135,16 @@ export class StoreService {
     });
   }
 
+  private removeIfNotOwner(prop: string, selfWebId: string | null) {
+    return {
+      $cond: {
+        if: { $eq: ["$webId", selfWebId] },
+        then: `$${prop}`,
+        else: "$$REMOVE",
+      },
+    };
+  }
+
   async *queryObjects(
     infoHashes: string[],
     selfWebId: string | null,
@@ -154,12 +164,16 @@ export class StoreService {
         },
       },
       // Mask out the _id, infoHashes, channels, and acl fields
+      // if the user is not the owner of the document
       {
         $project: {
           _id: 0,
-          infoHashes: 0,
-          channels: 0,
-          acl: 0,
+          value: 1,
+          webId: 1,
+          name: 1,
+          infoHashes: this.removeIfNotOwner("infoHashes", selfWebId),
+          channels: this.removeIfNotOwner("channels", selfWebId),
+          acl: this.removeIfNotOwner("acl", selfWebId),
         },
       },
     ];

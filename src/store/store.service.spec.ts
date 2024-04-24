@@ -329,6 +329,8 @@ describe("StoreService", () => {
       await service.putObject(go);
       const iterator = service.queryObjects(infoHashes, webId);
       const result = await iterator.next();
+      console.log("hi");
+      console.log(result);
       expect(result.value["value"]).toStrictEqual(go.value);
     });
 
@@ -396,27 +398,30 @@ describe("StoreService", () => {
       expect(count).toBe(5);
     });
 
-    it("query for name", async () => {
-      await service.putObject(go);
-      const go2 = randomGraffitiObject();
-      go2.name = randomString();
-      go2.channels = go.channels;
-      await service.putObject(go2);
+    for (const prop of ["name", "webId"]) {
+      it(`query for ${prop}`, async () => {
+        await service.putObject(go);
+        const go2 = randomGraffitiObject();
+        go2.name = randomString();
+        go2.webId = randomString();
+        go2.channels = go.channels;
+        await service.putObject(go2);
 
-      const iterator = service.queryObjects(infoHashes, webId, {
-        query: {
-          properties: {
-            name: {
-              enum: [go.name],
+        const iterator = service.queryObjects(infoHashes, webId, {
+          query: {
+            properties: {
+              [prop]: {
+                enum: [go[prop]],
+              },
             },
           },
-        },
+        });
+        const result = await iterator.next();
+        // Gets the queried name but not the other
+        expect(result.value["value"]).toStrictEqual(go.value);
+        await expect(iterator.next()).resolves.toHaveProperty("done", true);
       });
-      const result = await iterator.next();
-      // Gets the queried name but not the other
-      expect(result.value["value"]).toStrictEqual(go.value);
-      await expect(iterator.next()).resolves.toHaveProperty("done", true);
-    });
+    }
 
     it("query the value", async () => {
       go.value = { test: randomString() };
@@ -449,6 +454,35 @@ describe("StoreService", () => {
       expect(counts["test"]).toBe(2);
       expect(counts["something"]).toBe(2);
       expect(counts["other"]).toBe(1);
+    });
+
+    it("query for acl, channels, infoHashes, not as owner", async () => {
+      go.acl = [webId];
+      await service.putObject(go);
+
+      for (const property of ["acl", "channels", "infoHashes"]) {
+        const iterator = service.queryObjects(infoHashes, webId, {
+          query: {
+            required: [property],
+          },
+        });
+        await expect(iterator.next()).resolves.toHaveProperty("done", true);
+      }
+    });
+
+    it("query for acl, channels, infoHashes, as owner", async () => {
+      go.acl = [webId];
+      await service.putObject(go);
+
+      for (const property of ["acl", "channels", "infoHashes"]) {
+        const iterator = service.queryObjects(infoHashes, go.webId, {
+          query: {
+            required: [property],
+          },
+        });
+        const result = await iterator.next();
+        expect(result.value["value"]).toStrictEqual(go.value);
+      }
     });
   });
 });

@@ -8,5 +8,6 @@ import { InfoHashService } from "../info-hash/info-hash.service";
   imports: [StoreMongooseModule],
   controllers: [StoreController],
   providers: [StoreService, InfoHashService],
+  exports: [StoreService],
 })
 export class StoreModule {}

@@ -8,7 +8,7 @@ import { StoreSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 
-@Controller("s/:webId/:name")
+@Controller(":webId/:name")
 export class StoreController {
   constructor(private storeService: StoreService) {}
 

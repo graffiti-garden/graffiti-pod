@@ -7,5 +7,6 @@ import { StreamRequestMongooseModule } from "./stream-request.schema";
   imports: [StreamRequestMongooseModule],
   providers: [StreamRequestService],
   controllers: [StreamRequestController],
+  exports: [StreamRequestService],
 })
 export class StreamRequestModule {}

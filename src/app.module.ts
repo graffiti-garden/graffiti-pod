@@ -2,9 +2,9 @@ import { Module } from "@nestjs/common";
 import { StoreModule } from "./store/store.module";
 import { MongooseModule } from "@nestjs/mongoose";
 // import { DhtModule } from "./dht/dht.module";
-import { StreamGateway } from "./stream/stream.gateway";
 import { StreamRequestModule } from "./stream-request/stream-request.module";
 import { ScheduleModule } from "@nestjs/schedule";
+import { StreamModule } from "./stream/stream.module";
 
 export const RootMongooseModule = MongooseModule.forRoot("mongodb://mongo");
 
@@ -15,7 +15,7 @@ export const RootMongooseModule = MongooseModule.forRoot("mongodb://mongo");
     // DhtModule,
     StreamRequestModule,
     ScheduleModule.forRoot(),
+    StreamModule,
   ],
-  providers: [StreamGateway],
 })
 export class AppModule {}

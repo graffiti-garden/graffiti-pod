@@ -1,17 +1,16 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { StreamGateway } from "./stream.gateway";
 import { RootMongooseModule } from "../app.module";
-import { StreamRequestMongooseModule } from "../stream-request/stream-request.schema";
 import { StreamRequestService } from "../stream-request/stream-request.service";
-import { StoreService } from "../store/store.service";
 import { InfoHashService } from "../info-hash/info-hash.service";
 import { randomString } from "../test/utils";
 import { Socket, io } from "socket.io-client";
-import { StoreMongooseModule } from "../store/store.schema";
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from "@nestjs/platform-fastify";
+import { StreamRequestModule } from "../stream-request/stream-request.module";
+import { StoreModule } from "../store/store.module";
 
 describe("StreamGateway", () => {
   let streamRequest: StreamRequestService;
@@ -20,17 +19,8 @@ describe("StreamGateway", () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [
-        RootMongooseModule,
-        StreamRequestMongooseModule,
-        StoreMongooseModule,
-      ],
-      providers: [
-        StreamRequestService,
-        StoreService,
-        InfoHashService,
-        StreamGateway,
-      ],
+      imports: [RootMongooseModule, StreamRequestModule, StoreModule],
+      providers: [InfoHashService, StreamGateway],
     }).compile();
     app = module.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),

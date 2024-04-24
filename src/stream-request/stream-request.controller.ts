@@ -2,7 +2,7 @@ import { Controller, Post } from "@nestjs/common";
 import { StreamRequestService } from "./stream-request.service";
 import { WebId } from "../params/webid.decorator";
 
-@Controller("w")
+@Controller("stream-request")
 export class StreamRequestController {
   constructor(private readonly streamRequestService: StreamRequestService) {}
 

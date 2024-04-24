@@ -356,6 +356,31 @@ describe("StoreService", () => {
       expect(result.value["value"]).toStrictEqual(go.value);
     });
 
+    it("query no info hashes", async () => {
+      const iterator = service.queryObjects([], webId);
+      await expect(iterator.next()).resolves.toHaveProperty("done", true);
+    });
+
+    it("query one info hash", async () => {
+      expect(go.channels.length).toBe(2);
+      await service.putObject(go);
+      const iterator = service.queryObjects([infoHashes[0]], webId);
+      const result = await iterator.next();
+      expect(result.value["value"]).toStrictEqual(go.value);
+      await expect(iterator.next()).resolves.toHaveProperty("done", true);
+    });
+
+    it("query multiple info hashes", async () => {
+      await service.putObject(go);
+      const iterator = service.queryObjects(
+        [randomString(), infoHashes[0], randomString()],
+        webId,
+      );
+      const result = await iterator.next();
+      expect(result.value["value"]).toStrictEqual(go.value);
+      await expect(iterator.next()).resolves.toHaveProperty("done", true);
+    });
+
     it("query limited", async () => {
       for (let i = 0; i < 10; i++) {
         go.name = randomString();

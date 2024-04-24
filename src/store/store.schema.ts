@@ -66,7 +66,7 @@ export class StoreSchema {
       message: "ACL must be an array of strings.",
     },
   })
-  acl: string[];
+  acl?: string[];
 }
 
 export const StoreMongooseSchema = SchemaFactory.createForClass(StoreSchema);

@@ -23,6 +23,7 @@
     "@noble/curves": "^1.4.0",
     "@noble/hashes": "^1.4.0",
     "@solid/access-token-verifier": "^2.1.0",
+    "@types/json-schema": "^7.0.15",
     "bittorrent-dht": "^11.0.5",
     "fast-json-patch": "^3.1.1",
     "mongoose": "^8.3.1"

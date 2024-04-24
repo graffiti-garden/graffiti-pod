@@ -1,4 +1,4 @@
-import { Model } from "mongoose";
+import { Model, PipelineStage } from "mongoose";
 import {
   Injectable,
   UnauthorizedException,
@@ -15,6 +15,7 @@ import { JsonPatchError, applyPatch } from "fast-json-patch";
 import type { Operation } from "fast-json-patch";
 import { FastifyReply } from "fastify";
 import { InfoHashService } from "../info-hash/info-hash.service";
+import type { JSONSchema4 } from "json-schema";
 
 @Injectable()
 export class StoreService {
@@ -112,6 +113,16 @@ export class StoreService {
     }
   }
 
+  private aclQuery(selfWebId: string | null) {
+    return {
+      $or: [
+        { acl: { $exists: false } },
+        { acl: selfWebId },
+        { webId: selfWebId! },
+      ],
+    };
+  }
+
   async getObject(
     webId: string,
     name: string,
@@ -120,17 +131,47 @@ export class StoreService {
     return await this.storeModel.findOne({
       webId,
       name,
-      $or: [
-        { acl: { $exists: false } },
-        { acl: selfWebId },
-        { webId: selfWebId },
-      ],
+      ...this.aclQuery(selfWebId),
     });
   }
 
-  // async * query(infoHashes: string[], query?: JsonSchema, limit?: number) {
-  //   await this.storeModel.find({
-  //     infoHashes, value: { $jsonQuery: query }
-  //   })
-  // })
+  async *queryObjects(
+    infoHashes: string[],
+    selfWebId: string | null,
+    options?: {
+      query?: JSONSchema4;
+      limit?: number;
+    },
+  ): AsyncGenerator<StoreSchema, void, void> {
+    const pipeline: PipelineStage[] = [
+      // Reduce to only documents that contain
+      // at least one of the info hashes that
+      // the user is authorized to access
+      {
+        $match: {
+          infoHashes: { $elemMatch: { $in: infoHashes } },
+          ...this.aclQuery(selfWebId),
+        },
+      },
+      // Mask out the _id, infoHashes, channels, and acl fields
+      {
+        $project: {
+          _id: 0,
+          infoHashes: 0,
+          channels: 0,
+          acl: 0,
+        },
+      },
+    ];
+    if (options?.query) {
+      pipeline.push({ $match: { $jsonSchema: options.query } });
+    }
+    if (options?.limit) {
+      pipeline.push({ $limit: options.limit });
+    }
+
+    for await (const doc of this.storeModel.aggregate(pipeline)) {
+      yield doc;
+    }
+  }
 }

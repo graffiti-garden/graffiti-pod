@@ -10,9 +10,11 @@ import {
 import { HttpException } from "@nestjs/common";
 import { Operation } from "fast-json-patch";
 import { InfoHashService } from "../info-hash/info-hash.service";
+import { StoreSchema } from "./store.schema";
 
 describe("StoreService", () => {
   let service: StoreService;
+  let infoHashService: InfoHashService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -21,6 +23,7 @@ describe("StoreService", () => {
     }).compile();
 
     service = module.get<StoreService>(StoreService);
+    infoHashService = module.get<InfoHashService>(InfoHashService);
   });
 
   it("unauthorized", async () => {
@@ -154,9 +157,9 @@ describe("StoreService", () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
     const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result.webId).toBe(go.webId);
-    expect(result.name).toBe(go.name);
-    expect(result.value).toStrictEqual(go.value);
+    expect(result?.webId).toBe(go.webId);
+    expect(result?.name).toBe(go.name);
+    expect(result?.value).toStrictEqual(go.value);
   });
 
   it("put and get same owner, private", async () => {
@@ -164,18 +167,18 @@ describe("StoreService", () => {
     go.acl = [];
     await service.putObject(go);
     const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result.webId).toBe(go.webId);
-    expect(result.name).toBe(go.name);
-    expect(result.value).toStrictEqual(go.value);
+    expect(result?.webId).toBe(go.webId);
+    expect(result?.name).toBe(go.name);
+    expect(result?.value).toStrictEqual(go.value);
   });
 
   it("put and get public", async () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
     const result = await service.getObject(go.webId, go.name, randomString());
-    expect(result.webId).toBe(go.webId);
-    expect(result.name).toBe(go.name);
-    expect(result.value).toStrictEqual(go.value);
+    expect(result?.webId).toBe(go.webId);
+    expect(result?.name).toBe(go.name);
+    expect(result?.value).toStrictEqual(go.value);
   });
 
   it("put and get private, allowed", async () => {
@@ -184,9 +187,9 @@ describe("StoreService", () => {
     go.acl = [webId];
     await service.putObject(go);
     const result = await service.getObject(go.webId, go.name, webId);
-    expect(result.webId).toBe(go.webId);
-    expect(result.name).toBe(go.name);
-    expect(result.value).toStrictEqual(go.value);
+    expect(result?.webId).toBe(go.webId);
+    expect(result?.name).toBe(go.name);
+    expect(result?.value).toStrictEqual(go.value);
   });
 
   it("put and get private, not allowed", async () => {
@@ -202,7 +205,7 @@ describe("StoreService", () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
     const deleted = await service.deleteObject(go.webId, go.name);
-    expect(deleted.value).toStrictEqual(go.value);
+    expect(deleted?.value).toStrictEqual(go.value);
     const result = await service.getObject(go.webId, go.name, go.webId);
     expect(result).toBeNull();
   });
@@ -219,13 +222,13 @@ describe("StoreService", () => {
       { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
       { op: "add", path: `/newthing`, value: "new" },
     ]);
-    expect(patched.value).toStrictEqual({
+    expect(patched?.value).toStrictEqual({
       [Object.keys(go.value)[0]]: 42,
       newthing: "new",
     });
 
     const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result.value).toStrictEqual(patched.value);
+    expect(result?.value).toStrictEqual(patched?.value);
   });
 
   it("patch 'increment' with test", async () => {
@@ -237,9 +240,9 @@ describe("StoreService", () => {
       { op: "test", path: "/counter", value: 1 },
       { op: "replace", path: "/counter", value: 2 },
     ]);
-    expect(patched.value).toHaveProperty("counter", 2);
+    expect(patched?.value).toHaveProperty("counter", 2);
     const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result.value).toStrictEqual(patched.value);
+    expect(result?.value).toStrictEqual(patched?.value);
 
     try {
       await service.patchObject(go.webId, go.name, [
@@ -265,7 +268,6 @@ describe("StoreService", () => {
 
     try {
       const patched = await service.patchObject(go.webId, go.name, patch);
-      console.log(patched);
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.status).toBe(400);
@@ -288,7 +290,7 @@ describe("StoreService", () => {
     await service.putObject(go);
 
     // Patch at the same time
-    const jobs = [];
+    const jobs: Promise<StoreSchema | null>[] = [];
     for (let i = 0; i < 1000; i++) {
       jobs.push(
         service.patchObject(go.webId, go.name, [
@@ -307,5 +309,121 @@ describe("StoreService", () => {
       }
     }
     expect(numErrors).toBeGreaterThan(0);
+  });
+
+  describe("queries", () => {
+    let go: StoreSchema;
+    let infoHashes: string[];
+    let webId: string;
+
+    beforeEach(() => {
+      go = randomGraffitiObject();
+      go.channels = [randomString(), randomString()];
+      infoHashes = go.channels.map(
+        infoHashService.toInfoHash.bind(infoHashService),
+      );
+      webId = randomString();
+    });
+
+    it("get and query basic", async () => {
+      await service.putObject(go);
+      const iterator = service.queryObjects(infoHashes, webId);
+      const result = await iterator.next();
+      expect(result.value["value"]).toStrictEqual(go.value);
+    });
+
+    it("get and query authorized", async () => {
+      go.acl = [webId];
+      await service.putObject(go);
+      const iterator = service.queryObjects(infoHashes, webId);
+      const result = await iterator.next();
+      expect(result.value["value"]).toStrictEqual(go.value);
+    });
+
+    it("get and query unauthorized", async () => {
+      go.acl = [];
+      await service.putObject(go);
+      const iterator = service.queryObjects(infoHashes, webId);
+      const result = await iterator.next();
+      expect(result.done).toBe(true);
+    });
+
+    it("get and query implicit authorized", async () => {
+      go.acl = [];
+      await service.putObject(go);
+      const iterator = service.queryObjects(infoHashes, go.webId);
+      const result = await iterator.next();
+      expect(result.value["value"]).toStrictEqual(go.value);
+    });
+
+    it("query limited", async () => {
+      for (let i = 0; i < 10; i++) {
+        go.name = randomString();
+        await service.putObject(go);
+      }
+
+      let count = 0;
+      for await (const result of service.queryObjects(infoHashes, webId, {
+        limit: 5,
+      })) {
+        count++;
+      }
+      expect(count).toBe(5);
+    });
+
+    it("query for name", async () => {
+      await service.putObject(go);
+      const go2 = randomGraffitiObject();
+      go2.name = randomString();
+      go2.channels = go.channels;
+      await service.putObject(go2);
+
+      const iterator = service.queryObjects(infoHashes, webId, {
+        query: {
+          properties: {
+            name: {
+              enum: [go.name],
+            },
+          },
+        },
+      });
+      const result = await iterator.next();
+      // Gets the queried name but not the other
+      expect(result.value["value"]).toStrictEqual(go.value);
+      await expect(iterator.next()).resolves.toHaveProperty("done", true);
+    });
+
+    it("query the value", async () => {
+      go.value = { test: randomString() };
+      await service.putObject(go);
+      go.name = randomString();
+      go.value = { test: randomString(), something: randomString() };
+      await service.putObject(go);
+      go.name = randomString();
+      go.value = { other: randomString(), something: randomString() };
+      await service.putObject(go);
+
+      const counts = {};
+      for (const property of ["test", "something", "other"]) {
+        let count = 0;
+        for await (const result of service.queryObjects(infoHashes, webId, {
+          query: {
+            properties: {
+              value: {
+                required: [property],
+              },
+            },
+          },
+        })) {
+          expect(result.value[property]).toBeDefined();
+          count++;
+        }
+        counts[property] = count;
+      }
+
+      expect(counts["test"]).toBe(2);
+      expect(counts["something"]).toBe(2);
+      expect(counts["other"]).toBe(1);
+    });
   });
 });

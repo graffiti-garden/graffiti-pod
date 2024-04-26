@@ -3,7 +3,7 @@ import { StreamGateway } from "./stream.gateway";
 import { RootMongooseModule } from "../app.module";
 import { StreamRequestService } from "../stream-request/stream-request.service";
 import { InfoHashService } from "../info-hash/info-hash.service";
-import { randomString } from "../test/utils";
+import { randomGraffitiObject, randomString } from "../test/utils";
 import { Socket, io } from "socket.io-client";
 import {
   FastifyAdapter,
@@ -11,10 +11,12 @@ import {
 } from "@nestjs/platform-fastify";
 import { StreamRequestModule } from "../stream-request/stream-request.module";
 import { StoreModule } from "../store/store.module";
+import { StoreService } from "../store/store.service";
 
 describe("StreamGateway", () => {
   let streamRequest: StreamRequestService;
   let infoHashService: InfoHashService;
+  let storeService: StoreService;
   let app: NestFastifyApplication;
 
   beforeEach(async () => {
@@ -27,6 +29,7 @@ describe("StreamGateway", () => {
     );
     await app.listen(3000);
 
+    storeService = module.get<StoreService>(StoreService);
     streamRequest = app.get<StreamRequestService>(StreamRequestService);
     infoHashService = module.get<InfoHashService>(InfoHashService);
   });
@@ -131,6 +134,53 @@ describe("StreamGateway", () => {
           resolve();
         });
       });
+    });
+
+    it("get unauthorized, no query", async () => {
+      const channel = randomString();
+      const object1 = randomGraffitiObject();
+      object1.channels = [channel, randomString()];
+      await storeService.putObject(object1);
+      const object2 = randomGraffitiObject();
+      object2.channels = [randomString(), channel, randomString()];
+      await storeService.putObject(object2);
+
+      const id = randomString();
+      const infoHash = infoHashService.toInfoHash(channel);
+      const pok = infoHashService.toPok(channel, challenge);
+      ioClient.emit("query", {
+        id,
+        infoHashes: [infoHash],
+        poks: [pok],
+      });
+
+      let updateCount = 0;
+      await new Promise<void>((resolve) => {
+        ioClient.on(`query:${id}`, (data) => {
+          if (data.type === "update") {
+            data = data.data;
+            // Infohashes and channels are filtered
+            // to only what the user has supplied poks for
+            expect(data.acl).toBeUndefined();
+            expect(data.channels).toEqual([channel]);
+            expect(data.infoHashes).toEqual([infoHash]);
+            if (data.name === object1.name) {
+              expect(data.webId).toBe(object1.webId);
+              expect(data.value).toEqual(object1.value);
+            } else if (data.name === object2.name) {
+              expect(data.webId).toBe(object2.webId);
+              expect(data.value).toEqual(object2.value);
+            } else {
+              fail();
+            }
+            updateCount++;
+          }
+          if (data.type === "complete") {
+            resolve();
+          }
+        });
+      });
+      expect(updateCount).toBe(2);
     });
   });
 });

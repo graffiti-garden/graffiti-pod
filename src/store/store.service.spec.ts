@@ -11,6 +11,7 @@ import { HttpException } from "@nestjs/common";
 import { Operation } from "fast-json-patch";
 import { InfoHashService } from "../info-hash/info-hash.service";
 import { StoreSchema } from "./store.schema";
+import { encodeHeaderArray } from "../params/params.utils";
 
 describe("StoreService", () => {
   let service: StoreService;
@@ -58,8 +59,10 @@ describe("StoreService", () => {
     const response = responseMock();
     const returned = service.returnObject(go, go.webId, response);
     expect(returned).toStrictEqual(go.value);
-    expect(response.getHeader("Channels")).toStrictEqual(go.channels);
-    expect(response.getHeader("Access-Control-List")).toStrictEqual(go.acl);
+    expect(response.getHeader("Channels")).toBe(encodeHeaderArray(go.channels));
+    expect(response.getHeader("Access-Control-List")).toBe(
+      encodeHeaderArray(go.acl),
+    );
   });
 
   it("return different owner", async () => {
@@ -329,9 +332,9 @@ describe("StoreService", () => {
       await service.putObject(go);
       const iterator = service.queryObjects(infoHashes, webId);
       const result = await iterator.next();
-      console.log("hi");
-      console.log(result);
       expect(result.value["value"]).toStrictEqual(go.value);
+      expect(result.value["channels"]).toStrictEqual(go.channels);
+      expect(result.value["infoHashes"]).toStrictEqual(infoHashes);
     });
 
     it("get and query authorized", async () => {
@@ -456,18 +459,27 @@ describe("StoreService", () => {
       expect(counts["other"]).toBe(1);
     });
 
-    it("query for acl, channels, infoHashes, not as owner", async () => {
+    it("query for acl", async () => {
       go.acl = [webId];
       await service.putObject(go);
+      const iterator = service.queryObjects(infoHashes, webId, {
+        query: {
+          required: ["acl"],
+        },
+      });
+      await expect(iterator.next()).resolves.toHaveProperty("done", true);
+    });
 
-      for (const property of ["acl", "channels", "infoHashes"]) {
-        const iterator = service.queryObjects(infoHashes, webId, {
-          query: {
-            required: [property],
-          },
-        });
-        await expect(iterator.next()).resolves.toHaveProperty("done", true);
-      }
+    it("channels, infoHashes, not as owner", async () => {
+      go.acl = [webId];
+      expect(go.channels.length).toBe(2);
+      await service.putObject(go);
+
+      // Only query for one of the infoHashes (there are 2)
+      const iterator = service.queryObjects([infoHashes[1]], webId);
+      const result = await iterator.next();
+      expect(result.value["channels"]).toStrictEqual([go.channels[1]]);
+      expect(result.value["infoHashes"]).toStrictEqual([go.infoHashes[1]]);
     });
 
     it("query for acl, channels, infoHashes, as owner", async () => {
@@ -475,13 +487,14 @@ describe("StoreService", () => {
       await service.putObject(go);
 
       for (const property of ["acl", "channels", "infoHashes"]) {
-        const iterator = service.queryObjects(infoHashes, go.webId, {
+        const iterator = service.queryObjects([infoHashes[1]], go.webId, {
           query: {
             required: [property],
           },
         });
         const result = await iterator.next();
         expect(result.value["value"]).toStrictEqual(go.value);
+        expect(result.value[property]).toStrictEqual(go[property]);
       }
     });
   });

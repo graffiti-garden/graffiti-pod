@@ -94,7 +94,7 @@ export class StreamGateway implements OnGatewayConnection {
     (async () => {
       for await (const object of iterator) {
         socket.emit(event, {
-          type: "data",
+          type: "update",
           data: object,
         });
       }

@@ -116,6 +116,8 @@ export class StoreService {
     } catch (e) {
       if (e.name == "VersionError") {
         throw new ConflictException("Concurrent write, try again.");
+      } else if (e.name === "ValidationError") {
+        throw new UnprocessableEntityException(e.message);
       } else {
         throw e;
       }

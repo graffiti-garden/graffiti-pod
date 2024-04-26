@@ -10,6 +10,7 @@ function stringArrayValidator(v: any) {
 
 @Schema({
   optimisticConcurrency: true,
+  minimize: false,
 })
 export class StoreSchema {
   @Prop({ required: true })

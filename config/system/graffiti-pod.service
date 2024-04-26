@@ -1,0 +1,14 @@
+[Unit]
+Description=Graffiti Pod Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+WorkingDirectory=/srv/docker/graffiti-pod
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.deploy.yml up --build
+ExecStop=/usr/bin/docker compose down --remove-orphans
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

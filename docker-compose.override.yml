@@ -1,0 +1,8 @@
+version: "3.8"
+
+services:
+  graffiti-pod:
+    ports:
+      - 3000:3000
+    # Entrypoint just to hang the container
+    entrypoint: ["tail", "-f", "/dev/null"]

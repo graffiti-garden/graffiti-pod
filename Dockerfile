@@ -5,7 +5,3 @@ COPY package*.json .
 RUN npm install
 
 COPY . .
-
-# CMD npm run test:watch stream.gateway
-CMD npm run start
-# CMD npm run test

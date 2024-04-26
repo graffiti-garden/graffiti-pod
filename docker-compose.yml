@@ -8,8 +8,6 @@ services:
       - ./src:/app/src
     depends_on:
       - mongo
-    ports:
-      - 3000:3000
 
   mongo:
     image: mongo:7.0.8-jammy

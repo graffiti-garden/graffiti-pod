@@ -146,12 +146,12 @@ export class StoreService {
     });
   }
 
-  private removeIfNotOwner(prop: string, selfWebId: string | null) {
+  private ifNotOwner(prop: string, selfWebId: string | null, otherwise: any) {
     return {
       $cond: {
         if: { $eq: ["$webId", selfWebId] },
         then: `$${prop}`,
-        else: "$$REMOVE",
+        else: otherwise,
       },
     };
   }
@@ -174,17 +174,49 @@ export class StoreService {
           ...this.aclQuery(selfWebId),
         },
       },
-      // Mask out the _id, infoHashes, channels, and acl fields
-      // if the user is not the owner of the document
+      // Mask out the _id and if user is not the owner
+      // and filter infoHashes and channels to only
+      // the supplied infoHashes
       {
         $project: {
           _id: 0,
           value: 1,
           webId: 1,
           name: 1,
-          infoHashes: this.removeIfNotOwner("infoHashes", selfWebId),
-          channels: this.removeIfNotOwner("channels", selfWebId),
-          acl: this.removeIfNotOwner("acl", selfWebId),
+          acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
+          infoHashes: this.ifNotOwner("infoHashes", selfWebId, {
+            $filter: {
+              input: "$infoHashes",
+              as: "infoHash",
+              cond: { $in: ["$$infoHash", infoHashes] },
+            },
+          }),
+          channels: this.ifNotOwner("channels", selfWebId, {
+            $filter: {
+              input: {
+                $map: {
+                  input: "$infoHashes",
+                  as: "infoHash",
+                  in: {
+                    $cond: {
+                      if: {
+                        $in: ["$$infoHash", infoHashes],
+                      },
+                      then: {
+                        $arrayElemAt: [
+                          "$channels",
+                          { $indexOfArray: ["$infoHashes", "$$infoHash"] },
+                        ],
+                      },
+                      else: null,
+                    },
+                  },
+                },
+              },
+              as: "channel",
+              cond: { $ne: ["$$channel", null] },
+            },
+          }),
         },
       },
     ];

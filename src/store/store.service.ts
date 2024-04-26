@@ -16,6 +16,7 @@ import type { Operation } from "fast-json-patch";
 import { FastifyReply } from "fastify";
 import { InfoHashService } from "../info-hash/info-hash.service";
 import type { JSONSchema4 } from "json-schema";
+import { encodeHeaderArray } from "../params/params.utils";
 
 @Injectable()
 export class StoreService {
@@ -38,13 +39,21 @@ export class StoreService {
     object: StoreSchema | null,
     selfWebId: string | null,
     response: FastifyReply,
-  ): Object {
+    put: boolean = false,
+  ): Object | void {
     if (!object) {
-      throw new NotFoundException();
+      if (put) {
+        response.status(201);
+        return;
+      } else {
+        throw new NotFoundException();
+      }
     } else {
       if (selfWebId === object.webId) {
-        response.header("Access-Control-List", object.acl);
-        response.header("Channels", object.channels);
+        if (object.acl) {
+          response.header("Access-Control-List", encodeHeaderArray(object.acl));
+        }
+        response.header("Channels", encodeHeaderArray(object.channels));
       }
       return object.value;
     }

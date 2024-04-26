@@ -33,7 +33,7 @@ export class StoreController {
     object.acl = acl;
 
     const putted = await this.storeService.putObject(object);
-    return this.storeService.returnObject(putted, selfWebId, response);
+    return this.storeService.returnObject(putted, selfWebId, response, true);
   }
 
   @Delete()

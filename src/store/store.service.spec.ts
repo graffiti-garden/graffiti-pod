@@ -534,7 +534,7 @@ describe("StoreService", () => {
       }
     });
 
-    it("query with lastModified", async () => {
+    it("query with modifiedSince", async () => {
       go.lastModified = new Date(100);
       await service.putObject(go);
       const iteratorBefore = service.queryObjects(infoHashes, webId, {
@@ -550,9 +550,8 @@ describe("StoreService", () => {
   });
 
   it("list no channels", async () => {
-    const channels = await service.listChannels(randomString());
-    expect(Array.isArray(channels)).toBe(true);
-    expect(channels.length).toBe(0);
+    const channelsIterator = service.listChannels(randomString());
+    await expect(channelsIterator.next()).resolves.toHaveProperty("done", true);
   });
 
   it("list all channels", async () => {
@@ -567,11 +566,59 @@ describe("StoreService", () => {
     await service.putObject(go1);
     await service.putObject(go2);
 
-    const channels = await service.listChannels(webId);
-    expect(Array.isArray(channels)).toBe(true);
-    expect(channels.length).toBe(3);
-    expect(channels).toContain(go1.channels[0]);
-    expect(channels).toContain(go1.channels[1]);
-    expect(channels).toContain(go2.channels[0]);
+    const channelsIterator = service.listChannels(webId);
+    const channels = new Map<string, Date>();
+    let count = 0;
+    for await (const result of channelsIterator) {
+      channels.set(result.channel, result.lastModified);
+      count++;
+    }
+    expect(channels.size).toBe(3);
+    expect(channels.size).toEqual(count);
+    expect(channels.has(go1.channels[0])).toBe(true);
+    expect(channels.has(go1.channels[1])).toBe(true);
+    expect(channels.has(go2.channels[0])).toBe(true);
+    expect(channels.has(go2.channels[1])).toBe(true);
+    expect(channels.get(go2.channels[0])).toEqual(
+      channels.get(go2.channels[1]),
+    );
+    expect(channels.get(go1.channels[0])).not.toEqual(
+      channels.get(go1.channels[1]),
+    );
+  });
+
+  it.only("list channels modified since", async () => {
+    const webId = randomString();
+    const go = randomGraffitiObject();
+    go.webId = webId;
+    go.channels = [randomString(), randomString()];
+    await service.putObject(go);
+
+    const now = new Date();
+    const firstIterator = service.listChannels(webId, {
+      modifiedSince: now,
+    });
+    await expect(firstIterator.next()).resolves.toHaveProperty("done", true);
+
+    const go2 = randomGraffitiObject();
+    go2.webId = webId;
+    go2.channels = [...go.channels, randomString(), randomString()];
+    await service.putObject(go2);
+
+    const secondIterator = service.listChannels(webId, {
+      modifiedSince: now,
+    });
+    const channels = new Map<string, Date>();
+    let count = 0;
+    for await (const result of secondIterator) {
+      channels.set(result.channel, result.lastModified);
+      count++;
+    }
+    expect(channels.size).toBe(4);
+    expect(channels.size).toEqual(count);
+    for (const channel of go2.channels) {
+      expect(channels.has(channel)).toBe(true);
+      expect(channels.get(channel)).toEqual(channels.get(go2.channels[0]));
+    }
   });
 });

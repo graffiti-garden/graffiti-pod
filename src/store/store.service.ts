@@ -158,27 +158,30 @@ export class StoreService {
   }
 
   private modifiedSinceQuery(modifiedSince?: Date) {
-    return modifiedSince ? { lastModified: { $gt: modifiedSince } } : {};
+    return modifiedSince ? { lastModified: { $gte: modifiedSince } } : {};
   }
 
-  async listChannels(
+  async *listChannels(
     selfWebId: string | null,
     options?: {
       modifiedSince?: Date;
     },
-  ): Promise<Array<String>> {
-    const pipeline: PipelineStage[] = [
+  ): AsyncGenerator<
+    {
+      lastModified: Date;
+      channel: string;
+    },
+    void,
+    void
+  > {
+    for await (const output of this.storeModel.aggregate([
       {
         $match: {
           webId: selfWebId,
           ...this.modifiedSinceQuery(options?.modifiedSince),
         },
       },
-      {
-        $project: {
-          channels: 1,
-        },
-      },
+      { $project: { _id: 0, channels: 1, lastModified: 1 } },
       {
         $unwind: {
           path: "$channels",
@@ -186,16 +189,19 @@ export class StoreService {
       },
       {
         $group: {
-          _id: null,
-          channels: { $addToSet: "$channels" },
+          _id: "$channels",
+          lastModified: { $max: "$lastModified" },
         },
       },
-    ];
-    const result = await this.storeModel.aggregate(pipeline);
-    if (result.length) {
-      return result[0].channels;
-    } else {
-      return [];
+      {
+        $project: {
+          _id: 0,
+          channel: "$_id",
+          lastModified: 1,
+        },
+      },
+    ])) {
+      yield output;
     }
   }
 

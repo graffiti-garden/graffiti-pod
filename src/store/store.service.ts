@@ -157,6 +157,48 @@ export class StoreService {
     };
   }
 
+  private modifiedSinceQuery(modifiedSince?: Date) {
+    return modifiedSince ? { lastModified: { $gt: modifiedSince } } : {};
+  }
+
+  async listChannels(
+    selfWebId: string | null,
+    options?: {
+      modifiedSince?: Date;
+    },
+  ): Promise<Array<String>> {
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          webId: selfWebId,
+          ...this.modifiedSinceQuery(options?.modifiedSince),
+        },
+      },
+      {
+        $project: {
+          channels: 1,
+        },
+      },
+      {
+        $unwind: {
+          path: "$channels",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          channels: { $addToSet: "$channels" },
+        },
+      },
+    ];
+    const result = await this.storeModel.aggregate(pipeline);
+    if (result.length) {
+      return result[0].channels;
+    } else {
+      return [];
+    }
+  }
+
   async *queryObjects(
     infoHashes: string[],
     selfWebId: string | null,

@@ -548,4 +548,30 @@ describe("StoreService", () => {
       await expect(iteratorAfter.next()).resolves.toHaveProperty("done", true);
     });
   });
+
+  it("list no channels", async () => {
+    const channels = await service.listChannels(randomString());
+    expect(Array.isArray(channels)).toBe(true);
+    expect(channels.length).toBe(0);
+  });
+
+  it("list all channels", async () => {
+    const webId = randomString();
+    const go1 = randomGraffitiObject();
+    go1.channels = [randomString(), randomString()];
+    go1.webId = webId;
+    const go2 = randomGraffitiObject();
+    go2.channels = [randomString(), go1.channels[1]];
+    go2.webId = webId;
+
+    await service.putObject(go1);
+    await service.putObject(go2);
+
+    const channels = await service.listChannels(webId);
+    expect(Array.isArray(channels)).toBe(true);
+    expect(channels.length).toBe(3);
+    expect(channels).toContain(go1.channels[0]);
+    expect(channels).toContain(go1.channels[1]);
+    expect(channels).toContain(go2.channels[0]);
+  });
 });

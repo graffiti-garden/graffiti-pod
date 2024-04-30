@@ -4,8 +4,12 @@ import { MongooseModule } from "@nestjs/mongoose";
 
 export type StoreDocument = HydratedDocument<StoreSchema>;
 
-function stringArrayValidator(v: any) {
-  return Array.isArray(v) && v.every((e) => typeof e === "string");
+function uniqueStringArrayValidator(v: any) {
+  return (
+    Array.isArray(v) &&
+    v.every((e) => typeof e === "string") &&
+    new Set(v).size === v.length
+  );
 }
 
 @Schema({
@@ -40,8 +44,8 @@ export class StoreSchema {
     required: true,
     default: undefined,
     validate: {
-      validator: stringArrayValidator,
-      message: "Channels must be an array of strings.",
+      validator: uniqueStringArrayValidator,
+      message: "Channels must be a unique array of strings.",
     },
   })
   channels: string[];
@@ -53,13 +57,13 @@ export class StoreSchema {
     validate: {
       validator: function (v: any) {
         return (
-          stringArrayValidator(v) &&
+          uniqueStringArrayValidator(v) &&
           v.length === this.channels.length &&
           v.every((s: string) => /^[0-9a-fA-F]{64}$/.test(s))
         );
       },
       message:
-        "Info hashes must be an array of hex strings, one for each channel.",
+        "Info hashes must be a unique array of hex strings, one for each channel.",
     },
   })
   infoHashes: string[];
@@ -69,8 +73,8 @@ export class StoreSchema {
     required: false,
     default: undefined,
     validate: {
-      validator: stringArrayValidator,
-      message: "ACL must be an array of strings.",
+      validator: uniqueStringArrayValidator,
+      message: "ACL must be a unique array of strings.",
     },
   })
   acl?: string[];

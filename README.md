@@ -95,14 +95,10 @@ sudo systemctl restart graffiti-pod.service
 
 ## TODO:
 
-- modifiedAt
-  - returned in request headers and query
-  - dedicated query param
 - patch acl and channels
 - tombstones
   - tombstones for deleted items
   - tombstones for items that have moved channels
 - list all channels
-- channels and acl are unique
 - dht integration
   - watcher for added or deleted channels

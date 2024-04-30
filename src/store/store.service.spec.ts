@@ -106,6 +106,7 @@ describe("StoreService", () => {
     (go) => (go.channels = null),
     (go) => (go.channels = [undefined]),
     (go) => (go.channels = [null]),
+    (go) => (go.channels = ["a", "a"]),
   ]) {
     it("put invalid data", async () => {
       const go = randomGraffitiObject();

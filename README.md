@@ -8,10 +8,16 @@ To launch the container, run:
 sudo docker compose up --build
 ```
 
-Then in another terminal start the server with:
+Then in another terminal launch a shell with:
 
 ```bash
-sudo docker compose exec graffiti-pod npm run start
+sudo docker compose exec graffiti-pod sh
+```
+
+To start the app run:
+
+```bash
+npm start
 ```
 
 The application will be up at [localhost:3000](http://localhost:3000).
@@ -25,16 +31,16 @@ docker compose down --remove-orphans
 ### Testing
 
 Note that the web server must not be running to run tests.
-To run all tests run:
+To run all tests, run the following within the container shell:
 
 ```bash
-sudo docker compose exec graffiti-pod npm test
+npm test
 ```
 
 To run a particular test, replace `store.service` with the name of the test file:
 
 ```bash
-sudo docker compose exec graffiti-pod npm run test:watch store.service
+npm run test:watch store.service
 ```
 
 ## Deployment
@@ -90,10 +96,13 @@ sudo systemctl restart graffiti-pod.service
 ## TODO:
 
 - modifiedAt
+  - returned in request headers and query
   - dedicated query param
-  - tombstones for deleted items
 - patch acl and channels
+- tombstones
+  - tombstones for deleted items
   - tombstones for items that have moved channels
 - list all channels
+- channels and acl are unique
 - dht integration
   - watcher for added or deleted channels

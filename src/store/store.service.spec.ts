@@ -56,6 +56,7 @@ describe("StoreService", () => {
     const go = randomGraffitiObject();
     go.channels = [randomString(), randomString()];
     go.acl = [randomString(), randomString()];
+    go.lastModified = new Date();
     const response = responseMock();
     const returned = service.returnObject(go, go.webId, response);
     expect(returned).toStrictEqual(go.value);
@@ -63,17 +64,24 @@ describe("StoreService", () => {
     expect(response.getHeader("Access-Control-List")).toBe(
       encodeHeaderArray(go.acl),
     );
+    expect(response.getHeader("Last-Modified")).toBe(
+      go.lastModified.toUTCString(),
+    );
   });
 
   it("return different owner", async () => {
     const go = randomGraffitiObject();
     go.channels = [randomString(), randomString()];
     go.acl = [randomString(), randomString()];
+    go.lastModified = new Date();
     const response = responseMock();
     const returned = service.returnObject(go, randomString(), response);
     expect(returned).toStrictEqual(go.value);
     expect(response.getHeader("Channels")).toBeUndefined();
     expect(response.getHeader("Access-Control-List")).toBeUndefined();
+    expect(response.getHeader("Last-Modified")).toBe(
+      go.lastModified.toUTCString(),
+    );
   });
 
   it("return null", async () => {
@@ -158,11 +166,19 @@ describe("StoreService", () => {
 
   it("put and get same owner, public", async () => {
     const go = randomGraffitiObject();
+    const dateBefore = new Date();
+    await new Promise((r) => setTimeout(r, 100));
     await service.putObject(go);
+    await new Promise((r) => setTimeout(r, 100));
+    const dateAfter = new Date();
     const result = await service.getObject(go.webId, go.name, go.webId);
     expect(result?.webId).toBe(go.webId);
     expect(result?.name).toBe(go.name);
     expect(result?.value).toStrictEqual(go.value);
+    expect(result?.lastModified.getTime()).toBeGreaterThan(
+      dateBefore.getTime(),
+    );
+    expect(result?.lastModified.getTime()).toBeLessThan(dateAfter.getTime());
   });
 
   it("put and get same owner, private", async () => {
@@ -177,11 +193,19 @@ describe("StoreService", () => {
 
   it("put and get public", async () => {
     const go = randomGraffitiObject();
+    const dateBefore = new Date();
     await service.putObject(go);
+    const dateAfter = new Date();
     const result = await service.getObject(go.webId, go.name, randomString());
     expect(result?.webId).toBe(go.webId);
     expect(result?.name).toBe(go.name);
     expect(result?.value).toStrictEqual(go.value);
+    expect(result?.lastModified.getTime()).toBeGreaterThanOrEqual(
+      dateBefore.getTime(),
+    );
+    expect(result?.lastModified.getTime()).toBeLessThanOrEqual(
+      dateAfter.getTime(),
+    );
   });
 
   it("put and get private, allowed", async () => {
@@ -221,6 +245,14 @@ describe("StoreService", () => {
   it("patch simple", async () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
+    const result = (await service.getObject(
+      go.webId,
+      go.name,
+      go.webId,
+    )) as StoreSchema;
+
+    await new Promise<void>((r) => setTimeout(r, 200));
+
     const patched = await service.patchObject(go.webId, go.name, [
       { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
       { op: "add", path: `/newthing`, value: "new" },
@@ -230,8 +262,11 @@ describe("StoreService", () => {
       newthing: "new",
     });
 
-    const result = await service.getObject(go.webId, go.name, go.webId);
-    expect(result?.value).toStrictEqual(patched?.value);
+    const resultPatched = await service.getObject(go.webId, go.name, go.webId);
+    expect(resultPatched?.value).toStrictEqual(patched?.value);
+    expect(resultPatched?.lastModified.getTime()).toBeGreaterThan(
+      result.lastModified.getTime(),
+    );
   });
 
   it("patch 'increment' with test", async () => {
@@ -496,6 +531,20 @@ describe("StoreService", () => {
         expect(result.value["value"]).toStrictEqual(go.value);
         expect(result.value[property]).toStrictEqual(go[property]);
       }
+    });
+
+    it("query with lastModified", async () => {
+      go.lastModified = new Date(100);
+      await service.putObject(go);
+      const iteratorBefore = service.queryObjects(infoHashes, webId, {
+        modifiedSince: new Date(50),
+      });
+      const resultBefore = await iteratorBefore.next();
+      expect(resultBefore.value["value"]).toStrictEqual(go.value);
+      const iteratorAfter = service.queryObjects(infoHashes, webId, {
+        modifiedSince: new Date(150),
+      });
+      await expect(iteratorAfter.next()).resolves.toHaveProperty("done", true);
     });
   });
 });

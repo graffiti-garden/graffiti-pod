@@ -53,7 +53,7 @@ describe("StoreController", () => {
       throw new Error("No webId");
     }
     webId = session.webId;
-  });
+  }, 100000);
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -86,10 +86,12 @@ describe("StoreController", () => {
     const url = toUrl(randomString());
     const body = { [randomString()]: randomString(), "🪿": "🐣" };
     const channels = [randomString(), "://,🎨", randomString()];
+    const dateBefore = new Date();
     const responsePut = await request(solidFetch, url, "PUT", {
       body,
       channels,
     });
+    const dateAfter = new Date();
     expect(responsePut.status).toBe(201);
 
     // Fetch authenticated
@@ -102,6 +104,15 @@ describe("StoreController", () => {
     expect(responseGetAuth.headers.get("content-type")).toBe(
       "application/json; charset=utf-8",
     );
+    const lastModifiedAuth = responseGetAuth.headers.get(
+      "last-modified",
+    ) as string;
+    expect(new Date(lastModifiedAuth).getTime()).toBeGreaterThan(
+      dateBefore.getTime(),
+    );
+    expect(new Date(lastModifiedAuth).getTime()).toBeLessThan(
+      dateAfter.getTime(),
+    );
     await expect(responseGetAuth.json()).resolves.toEqual(body);
 
     // Fetch unauthenticated
@@ -110,8 +121,17 @@ describe("StoreController", () => {
     await expect(responseGetUnauth.json()).resolves.toEqual(body);
     expect(responseGetUnauth.headers.get("access-control-list")).toBeNull();
     expect(responseGetUnauth.headers.get("channels")).toBeNull();
-    expect(responseGetAuth.headers.get("content-type")).toBe(
+    expect(responseGetUnauth.headers.get("content-type")).toBe(
       "application/json; charset=utf-8",
+    );
+    const lastModifiedUnauth = responseGetAuth.headers.get(
+      "last-modified",
+    ) as string;
+    expect(new Date(lastModifiedUnauth).getTime()).toBeGreaterThan(
+      dateBefore.getTime(),
+    );
+    expect(new Date(lastModifiedUnauth).getTime()).toBeLessThan(
+      dateAfter.getTime(),
     );
   });
 
@@ -129,6 +149,9 @@ describe("StoreController", () => {
 
     const responseUnauth = await fetch(url);
     expect(responseUnauth.status).toBe(404);
+    expect(responseUnauth.headers.get("last-modified")).toBeNull();
+    expect(responseUnauth.headers.get("channels")).toBeNull();
+    expect(responseUnauth.headers.get("access-control-list")).toBeNull();
   });
 
   it("put invalid body", async () => {

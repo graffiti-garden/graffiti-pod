@@ -43,10 +43,10 @@ export function responseMock() {
   const headers = new Map<string, string>();
   return {
     header(name: string, value: string) {
-      headers.set(name, value);
+      headers.set(name.toLowerCase(), value);
     },
     getHeader(name: string) {
-      return headers.get(name);
+      return headers.get(name.toLowerCase());
     },
   } as FastifyReply;
 }

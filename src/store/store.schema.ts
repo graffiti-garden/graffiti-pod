@@ -11,8 +11,14 @@ function stringArrayValidator(v: any) {
 @Schema({
   optimisticConcurrency: true,
   minimize: false,
+  timestamps: {
+    createdAt: false,
+    updatedAt: "lastModified",
+  },
 })
 export class StoreSchema {
+  lastModified: Date;
+
   @Prop({ required: true })
   webId: string;
 

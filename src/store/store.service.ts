@@ -51,10 +51,11 @@ export class StoreService {
     } else {
       if (selfWebId === object.webId) {
         if (object.acl) {
-          response.header("Access-Control-List", encodeHeaderArray(object.acl));
+          response.header("access-control-list", encodeHeaderArray(object.acl));
         }
-        response.header("Channels", encodeHeaderArray(object.channels));
+        response.header("channels", encodeHeaderArray(object.channels));
       }
+      response.header("last-modified", object.lastModified.toUTCString());
       return object.value;
     }
   }
@@ -160,6 +161,7 @@ export class StoreService {
     infoHashes: string[],
     selfWebId: string | null,
     options?: {
+      modifiedSince?: Date;
       query?: JSONSchema4;
       limit?: number;
     },
@@ -167,11 +169,15 @@ export class StoreService {
     const pipeline: PipelineStage[] = [
       // Reduce to only documents that contain
       // at least one of the info hashes that
-      // the user is authorized to access
+      // the user is authorized to access before
+      // the given time.
       {
         $match: {
           infoHashes: { $elemMatch: { $in: infoHashes } },
           ...this.aclQuery(selfWebId),
+          ...(options?.modifiedSince
+            ? { lastModified: { $gt: options?.modifiedSince } }
+            : {}),
         },
       },
       // Mask out the _id and if user is not the owner
@@ -183,6 +189,7 @@ export class StoreService {
           value: 1,
           webId: 1,
           name: 1,
+          lastModified: 1,
           acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
           infoHashes: this.ifNotOwner("infoHashes", selfWebId, {
             $filter: {

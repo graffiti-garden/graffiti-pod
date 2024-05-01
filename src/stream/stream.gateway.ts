@@ -59,7 +59,6 @@ export class StreamGateway implements OnGatewayConnection {
   }
 
   private async handleIterator(
-    name: string,
     id: string,
     socket: Socket,
     iterator: AsyncIterable<any>,
@@ -89,7 +88,7 @@ export class StreamGateway implements OnGatewayConnection {
       },
     );
 
-    this.handleIterator("ls", dto.id, socket, iterator);
+    this.handleIterator(dto.id, socket, iterator);
   }
 
   @SubscribeMessage("query")
@@ -123,6 +122,6 @@ export class StreamGateway implements OnGatewayConnection {
       { query: dto.query, limit: dto.limit, modifiedSince: dto.modifiedSince },
     );
 
-    this.handleIterator("query", dto.id, socket, iterator);
+    this.handleIterator(dto.id, socket, iterator);
   }
 }

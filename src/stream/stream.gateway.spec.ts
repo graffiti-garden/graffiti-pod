@@ -232,5 +232,61 @@ describe("StreamGateway", () => {
       });
       expect(updateCount).toBe(1);
     });
+
+    it("stream ls bad modified since", async () => {
+      const id = randomString();
+      ioClient.emit("ls", {
+        id,
+        modifiedSince: "bad date",
+      });
+      await new Promise<void>((resolve) => {
+        ioClient.on(id, (data) => {
+          expect(data).toHaveProperty("type", "error");
+          resolve();
+        });
+      });
+    });
+
+    it("stream ls", async () => {
+      const go1 = randomGraffitiObject();
+      go1.channels = [randomString(), randomString()];
+      go1.webId = webId;
+      await storeService.putObject(go1);
+
+      const go2 = randomGraffitiObject();
+      go2.channels = [go1.channels[0], randomString()];
+      go2.webId = webId;
+      await storeService.putObject(go2);
+
+      const id = randomString();
+      ioClient.emit("ls", {
+        id,
+      });
+
+      let count = 0;
+      const channels = new Map<string, Date>();
+      await new Promise<void>((resolve) => {
+        ioClient.on(id, (data) => {
+          if (data.type === "update") {
+            count++;
+            channels.set(data.channel, new Date(data.lastModified));
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      expect(count).toEqual(channels.size);
+      expect(count).toBe(3);
+      for (const channel of [...go1.channels, ...go2.channels]) {
+        expect(channels.has(channel)).toBe(true);
+      }
+      expect(channels.get(go1.channels[0])!.getTime()).toBeGreaterThan(
+        channels.get(go1.channels[1])!.getTime(),
+      );
+      expect(channels.get(go2.channels[0])!.getTime()).toEqual(
+        channels.get(go2.channels[1])!.getTime(),
+      );
+    });
   });
 });

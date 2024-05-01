@@ -6,7 +6,9 @@ import {
   IsNumber,
   IsObject,
   IsOptional,
+  IsDate,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { JSONSchema4 } from "json-schema";
 
 export class QueryDTO {
@@ -29,4 +31,9 @@ export class QueryDTO {
   @IsOptional()
   @IsObject()
   query?: JSONSchema4;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  modifiedSince?: Date;
 }

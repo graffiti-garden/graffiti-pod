@@ -13,7 +13,9 @@ import { InfoHashService } from "../info-hash/info-hash.service";
 import { QueryDTO } from "./stream.query.dto";
 import { UseFilters, UsePipes, ValidationPipe } from "@nestjs/common";
 import { WsValidationFilter } from "./stream.filter";
+import { ListChannelsDTO } from "./stream.list-channels.dto";
 
+@UsePipes(new ValidationPipe({ transform: true }))
 @UseFilters(WsValidationFilter)
 @WebSocketGateway()
 export class StreamGateway implements OnGatewayConnection {
@@ -56,14 +58,45 @@ export class StreamGateway implements OnGatewayConnection {
     });
   }
 
-  @UsePipes(new ValidationPipe())
+  private async handleIterator(
+    name: string,
+    id: string,
+    socket: Socket,
+    iterator: AsyncIterable<any>,
+  ) {
+    (async () => {
+      for await (const result of iterator) {
+        socket.emit(id, {
+          type: "update",
+          ...result,
+        });
+      }
+      socket.emit(id, {
+        type: "complete",
+      });
+    })();
+  }
+
+  @SubscribeMessage("ls")
+  async handleListChannels(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() dto: ListChannelsDTO,
+  ): Promise<void> {
+    const iterator = this.storeService.listChannels(
+      socket.handshake.query.webId as string,
+      {
+        modifiedSince: dto.modifiedSince,
+      },
+    );
+
+    this.handleIterator("ls", dto.id, socket, iterator);
+  }
+
   @SubscribeMessage("query")
   async handleSubscribe(
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: QueryDTO,
   ): Promise<void | WsResponse<any>> {
-    const event = `query:${dto.id}`;
-
     const challenge = socket.handshake.query.challenge as string;
     for (const [index, infoHash] of dto.infoHashes.entries()) {
       if (
@@ -74,7 +107,7 @@ export class StreamGateway implements OnGatewayConnection {
         )
       ) {
         return {
-          event,
+          event: dto.id,
           data: {
             type: "error",
             message: "Invalid proof of knowledge",
@@ -87,20 +120,9 @@ export class StreamGateway implements OnGatewayConnection {
     const iterator = this.storeService.queryObjects(
       dto.infoHashes,
       socket.handshake.query.webId as string,
-      { query: dto.query, limit: dto.limit },
+      { query: dto.query, limit: dto.limit, modifiedSince: dto.modifiedSince },
     );
 
-    // Send responses to the client in the background
-    (async () => {
-      for await (const object of iterator) {
-        socket.emit(event, {
-          type: "update",
-          data: object,
-        });
-      }
-      socket.emit(event, {
-        type: "complete",
-      });
-    })();
+    this.handleIterator("query", dto.id, socket, iterator);
   }
 }

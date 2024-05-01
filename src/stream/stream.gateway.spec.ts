@@ -111,7 +111,7 @@ describe("StreamGateway", () => {
         poks: [randomString(64)],
       });
       await new Promise<void>((resolve) => {
-        ioClient.on(`query:${id}`, (data) => {
+        ioClient.on(id, (data) => {
           expect(data).toHaveProperty("type", "error");
           resolve();
         });
@@ -129,7 +129,7 @@ describe("StreamGateway", () => {
         poks: [pok],
       });
       await new Promise<void>((resolve) => {
-        ioClient.on(`query:${id}`, (data) => {
+        ioClient.on(id, (data) => {
           expect(data).toHaveProperty("type", "complete");
           resolve();
         });
@@ -156,9 +156,8 @@ describe("StreamGateway", () => {
 
       let updateCount = 0;
       await new Promise<void>((resolve) => {
-        ioClient.on(`query:${id}`, (data) => {
+        ioClient.on(id, (data) => {
           if (data.type === "update") {
-            data = data.data;
             // Infohashes and channels are filtered
             // to only what the user has supplied poks for
             expect(data.acl).toBeUndefined();
@@ -181,6 +180,57 @@ describe("StreamGateway", () => {
         });
       });
       expect(updateCount).toBe(2);
+    });
+
+    it("query modified since", async () => {
+      const objectBefore = randomGraffitiObject();
+      const channel = randomString();
+      objectBefore.channels = [channel, randomString()];
+      await storeService.putObject(objectBefore);
+
+      const infoHash = infoHashService.toInfoHash(channel);
+      const pok = infoHashService.toPok(channel, challenge);
+
+      const idBefore = randomString();
+      const now = new Date();
+      ioClient.emit("query", {
+        id: idBefore,
+        infoHashes: [infoHash],
+        poks: [pok],
+        modifiedSince: now,
+      });
+
+      await new Promise<void>((resolve) => {
+        ioClient.on(idBefore, (data) => {
+          expect(data.type).toBe("complete");
+          resolve();
+        });
+      });
+
+      const objectAfter = randomGraffitiObject();
+      objectAfter.channels = [channel, randomString()];
+      await storeService.putObject(objectAfter);
+
+      const idAfter = randomString();
+      ioClient.emit("query", {
+        id: idAfter,
+        infoHashes: [infoHash],
+        poks: [pok],
+        modifiedSince: now,
+      });
+
+      let updateCount = 0;
+      await new Promise<void>((resolve) => {
+        ioClient.on(idAfter, (data) => {
+          if (data.type === "update") {
+            updateCount++;
+            expect(data.name).toBe(objectAfter.name);
+          } else {
+            resolve();
+          }
+        });
+      });
+      expect(updateCount).toBe(1);
     });
   });
 });

@@ -6,7 +6,6 @@ import {
   Body,
   Response,
   Header,
-  UnprocessableEntityException,
 } from "@nestjs/common";
 import { Controller } from "@nestjs/common";
 import { DecodeParam } from "../params/decodeparam.decorator";

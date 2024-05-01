@@ -21,7 +21,7 @@ export class WsValidationFilter implements ExceptionFilter {
     const data = wsArgs.getData();
 
     if (typeof data === "object" && "id" in data) {
-      client.emit(`${pattern}:${data.id}`, messageObject);
+      client.emit(data.id, messageObject);
     } else {
       client.emit(pattern, messageObject);
     }

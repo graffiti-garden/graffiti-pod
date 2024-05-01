@@ -6,7 +6,7 @@ import {
 import { randomString, solidLogin } from "../test/utils";
 import { StoreModule } from "./store.module";
 import { RootMongooseModule } from "../app.module";
-import { encodeHeaderArray, decodeHeaderArray } from "../params/params.utils";
+import { encodeHeaderArray } from "../params/params.utils";
 import { Operation } from "fast-json-patch";
 
 describe("StoreController", () => {

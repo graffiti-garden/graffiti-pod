@@ -587,7 +587,7 @@ describe("StoreService", () => {
     );
   });
 
-  it.only("list channels modified since", async () => {
+  it("list channels modified since", async () => {
     const webId = randomString();
     const go = randomGraffitiObject();
     go.webId = webId;

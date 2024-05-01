@@ -223,9 +223,7 @@ export class StoreService {
         $match: {
           infoHashes: { $elemMatch: { $in: infoHashes } },
           ...this.aclQuery(selfWebId),
-          ...(options?.modifiedSince
-            ? { lastModified: { $gt: options?.modifiedSince } }
-            : {}),
+          ...this.modifiedSinceQuery(options?.modifiedSince),
         },
       },
       // Mask out the _id and if user is not the owner

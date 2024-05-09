@@ -60,20 +60,21 @@ export class StoreService {
     }
   }
 
-  async putObject(object: StoreSchema): Promise<StoreSchema | null> {
-    // Convert channels to info hashes, if not already
-    if (!object.infoHashes) {
-      if (!object.channels) {
-        throw new UnprocessableEntityException("Channels are required");
-      }
-      object.infoHashes = object.channels.map<string>((channel: any) => {
-        if (typeof channel !== "string" || !channel) {
-          throw new UnprocessableEntityException("Channels must be strings");
-        }
-        return this.infoHashService.toInfoHash(channel);
-      });
+  assignInfoHashes(object: StoreSchema): void {
+    if (!object.channels) {
+      throw new UnprocessableEntityException("Channels are required");
     }
 
+    object.infoHashes = object.channels.map<string>((channel: any) => {
+      if (typeof channel !== "string" || !channel) {
+        throw new UnprocessableEntityException("Channels must be strings");
+      }
+      return this.infoHashService.toInfoHash(channel);
+    });
+  }
+
+  async putObject(object: StoreSchema): Promise<StoreSchema | null> {
+    this.assignInfoHashes(object);
     try {
       return await this.storeModel.findOneAndReplace(
         { webId: object.webId, name: object.name },
@@ -96,22 +97,40 @@ export class StoreService {
   async patchObject(
     webId: string,
     name: string,
-    jsonPatch: Operation[],
+    valuePatch: Operation[],
+    aclPatch?: Operation[],
+    channelsPatch?: Operation[],
   ): Promise<StoreSchema | null> {
     const doc = await this.storeModel.findOne({ webId, name });
     if (!doc) return doc;
-    try {
-      doc.value = applyPatch(doc.value, jsonPatch, true).newDocument;
-    } catch (e) {
-      if (e.name === "TEST_OPERATION_FAILED") {
-        throw new PreconditionFailedException(e.message);
-      } else if (e instanceof JsonPatchError) {
-        throw new BadRequestException(e.message);
-      } else {
-        throw e;
+
+    for (const [patch, prop] of [
+      [valuePatch, "value"],
+      [aclPatch, "acl"],
+      [channelsPatch, "channels"],
+    ] as const) {
+      if (!patch) continue;
+      try {
+        const patched = applyPatch(doc[prop], patch, true).newDocument;
+        // @ts-ignore
+        // If the patch is the wrong type, it will
+        // be caught by validateBeforeSave.
+        doc[prop] = patched;
+      } catch (e) {
+        if (e.name === "TEST_OPERATION_FAILED") {
+          throw new PreconditionFailedException(e.message);
+        } else if (e instanceof JsonPatchError) {
+          throw new UnprocessableEntityException(e.message);
+        } else {
+          throw e;
+        }
       }
+      doc.markModified(prop);
     }
-    doc.markModified("value");
+
+    // Reassign the infohashes
+    this.assignInfoHashes(doc);
+
     try {
       return await doc.save({ validateBeforeSave: true });
     } catch (e) {

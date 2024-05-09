@@ -135,27 +135,6 @@ describe("StoreService", () => {
     await service.putObject(go);
   });
 
-  for (const infoHashes of [
-    [],
-    [randomString(), randomString()],
-    ["🪿"],
-    [randomString(31)],
-    [randomString(33)],
-  ]) {
-    it("bad info hashes", async () => {
-      const go = randomGraffitiObject();
-      go.channels = [randomString()];
-      go.infoHashes = infoHashes;
-      expect.assertions(2);
-      try {
-        await service.putObject(go);
-      } catch (e) {
-        expect(e).toBeInstanceOf(HttpException);
-        expect(e.status).toBe(422);
-      }
-    });
-  }
-
   it("get non existant object", async () => {
     const result = await service.getObject(
       randomString(),
@@ -309,7 +288,7 @@ describe("StoreService", () => {
       const patched = await service.patchObject(go.webId, go.name, patch);
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
-      expect(e.status).toBe(400);
+      expect(e.status).toBe(422);
     }
 
     expect.assertions(2);
@@ -348,6 +327,84 @@ describe("StoreService", () => {
       }
     }
     expect(numErrors).toBeGreaterThan(0);
+  });
+
+  it("patch acl and channels", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    await service.putObject(go);
+
+    const newChannel = randomString();
+    const patched = await service.patchObject(
+      go.webId,
+      go.name,
+      [],
+      [{ op: "add", path: "", value: [] }],
+      [{ op: "add", path: "/-", value: newChannel }],
+    );
+
+    expect(patched?.channels[2]).toEqual(newChannel);
+    expect(patched?.acl).toEqual([]);
+
+    const resultPatched = await service.getObject(go.webId, go.name, go.webId);
+    expect(resultPatched?.acl).toEqual(patched?.acl);
+    expect(resultPatched?.channels).toEqual(patched?.channels);
+  });
+
+  it("patch channels to be null", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    try {
+      await service.patchObject(
+        go.webId,
+        go.name,
+        [],
+        [],
+        [{ op: "replace", path: "", value: null }],
+      );
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(422);
+    }
+    expect.assertions(2);
+  });
+
+  it("patch makes channels non-unique", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    await service.putObject(go);
+    try {
+      await service.patchObject(
+        go.webId,
+        go.name,
+        [],
+        [],
+        [{ op: "add", path: "/-", value: go.channels[0] }],
+      );
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(422);
+    }
+    expect.assertions(2);
+  });
+
+  it("patch channels if an object", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    await service.putObject(go);
+    try {
+      await service.patchObject(
+        go.webId,
+        go.name,
+        [],
+        [],
+        [{ op: "add", path: "/something", value: randomString() }],
+      );
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpException);
+      expect(e.status).toBe(422);
+    }
+    expect.assertions(2);
   });
 
   describe("queries", () => {

@@ -6,6 +6,7 @@ import {
   Body,
   Response,
   Header,
+  BadRequestException,
 } from "@nestjs/common";
 import { Controller } from "@nestjs/common";
 import { DecodeParam } from "../params/decodeparam.decorator";
@@ -15,6 +16,7 @@ import { AccessControlList } from "../params/acl.decorator";
 import { StoreSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
+import { Operation } from "fast-json-patch";
 
 const CONTENT_TYPE = [
   "Content-Type",
@@ -68,12 +70,35 @@ export class StoreController {
   async patchObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
-    @Body() jsonPatch: any,
+    @Body() valuePatch: any,
+    @Channels() channelsPatchStringArray: string[],
+    @AccessControlList() aclPatchStringArray: string[] | undefined,
     @WebId() selfWebId: string | null,
     @Response({ passthrough: true }) response: FastifyReply,
   ) {
+    const patches = new Map<string, Operation[] | undefined>();
+    for (const [key, patchStringArray] of [
+      ["channels", channelsPatchStringArray],
+      ["acl", aclPatchStringArray],
+    ] as const) {
+      let patched: Operation[] | undefined;
+      try {
+        patched = patchStringArray?.map((patchString) =>
+          JSON.parse(patchString),
+        );
+      } catch {
+        throw new BadRequestException(`Invalid ${key} patch`);
+      }
+      patches.set(key, patched);
+    }
     this.storeService.validateWebId(webId, selfWebId);
-    const patched = await this.storeService.patchObject(webId, name, jsonPatch);
+    const patched = await this.storeService.patchObject(
+      webId,
+      name,
+      valuePatch,
+      patches.get("acl"),
+      patches.get("channels"),
+    );
     return this.storeService.returnObject(patched, selfWebId, response);
   }
 

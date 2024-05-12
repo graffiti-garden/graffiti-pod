@@ -204,7 +204,7 @@ describe("StoreController", () => {
     const response = await request(solidFetch, url, "PATCH", {
       body: [{ op: "notarealop", path: "/hello" }],
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
   });
 
   it("bad patch overall", async () => {
@@ -213,7 +213,32 @@ describe("StoreController", () => {
     const response = await request(solidFetch, url, "PATCH", {
       body: {},
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
+  });
+
+  it("patch channels and acl", async () => {
+    const url = toUrl(randomString());
+    await request(solidFetch, url, "PUT", { body: {} });
+    const response = await request(solidFetch, url, "PATCH", {
+      body: [],
+      acl: [
+        JSON.stringify({
+          op: "add",
+          path: "",
+          value: ["some-acl"],
+        }),
+      ],
+      channels: [
+        JSON.stringify({
+          op: "add",
+          path: "/-",
+          value: "some-channel",
+        }),
+      ],
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("channels")).toBe("some-channel");
+    expect(response.headers.get("access-control-list")).toBe("some-acl");
   });
 
   it("delete non-existant", async () => {

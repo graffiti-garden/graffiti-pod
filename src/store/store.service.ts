@@ -1,4 +1,4 @@
-import { Model, PipelineStage } from "mongoose";
+import { Model, PipelineStage, Document } from "mongoose";
 import {
   Injectable,
   UnauthorizedException,
@@ -6,7 +6,6 @@ import {
   NotFoundException,
   UnprocessableEntityException,
   PreconditionFailedException,
-  BadRequestException,
   ConflictException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
@@ -73,14 +72,48 @@ export class StoreService {
     });
   }
 
-  async putObject(object: StoreSchema): Promise<StoreSchema | null> {
+  async deleteObject(webId: string, name: string, modifiedBefore?: Date) {
+    return await this.storeModel.findOneAndUpdate(
+      {
+        webId,
+        name,
+        tombstone: false,
+        ...(modifiedBefore ? { lastModified: { $lt: modifiedBefore } } : {}),
+      },
+      { $set: { tombstone: true } },
+      {
+        sort: { lastModified: 1 },
+      },
+    );
+  }
+
+  async getObject(
+    webId: string,
+    name: string,
+    selfWebId: string | null,
+  ): Promise<(Document<unknown, {}, StoreSchema> & StoreSchema) | null> {
+    return await this.storeModel.findOne(
+      {
+        webId,
+        name,
+        tombstone: false,
+        ...this.aclQuery(selfWebId),
+      },
+      null,
+      {
+        sort: { lastModified: -1 },
+      },
+    );
+  }
+
+  async putObject(object: StoreSchema) {
+    // Add info hashes and tombstone
     this.assignInfoHashes(object);
+
+    // Try to insert the object
+    let putObject: StoreSchema;
     try {
-      return await this.storeModel.findOneAndReplace(
-        { webId: object.webId, name: object.name },
-        object,
-        { upsert: true, runValidators: true },
-      );
+      putObject = await new this.storeModel(object).save();
     } catch (e) {
       if (e.name === "ValidationError") {
         throw new UnprocessableEntityException(e.message);
@@ -88,10 +121,13 @@ export class StoreService {
         throw e;
       }
     }
-  }
 
-  async deleteObject(webId: string, name: string): Promise<StoreSchema | null> {
-    return await this.storeModel.findOneAndDelete({ webId, name });
+    // Apply tombstones to other objects
+    return await this.deleteObject(
+      object.webId,
+      object.name,
+      putObject.lastModified,
+    );
   }
 
   async patchObject(
@@ -101,9 +137,11 @@ export class StoreService {
     aclPatch?: Operation[],
     channelsPatch?: Operation[],
   ): Promise<StoreSchema | null> {
-    const doc = await this.storeModel.findOne({ webId, name });
+    // Get the original
+    const doc = await this.getObject(webId, name, webId);
     if (!doc) return doc;
 
+    // Patch it outside of the database
     for (const [patch, prop] of [
       [valuePatch, "value"],
       [aclPatch, "acl"],
@@ -131,8 +169,14 @@ export class StoreService {
     // Reassign the infohashes
     this.assignInfoHashes(doc);
 
+    // Force the doc to be new
+    doc.isNew = true;
+    doc._id = undefined;
+
+    // Try and save the patched object
+    let patchedObject: StoreSchema;
     try {
-      return await doc.save({ validateBeforeSave: true });
+      patchedObject = await doc.save();
     } catch (e) {
       if (e.name == "VersionError") {
         throw new ConflictException("Concurrent write, try again.");
@@ -142,6 +186,9 @@ export class StoreService {
         throw e;
       }
     }
+
+    // Delete and return the original object
+    return await this.deleteObject(webId, name, patchedObject.lastModified);
   }
 
   private aclQuery(selfWebId: string | null) {
@@ -152,18 +199,6 @@ export class StoreService {
         { webId: selfWebId! },
       ],
     };
-  }
-
-  async getObject(
-    webId: string,
-    name: string,
-    selfWebId: string | null,
-  ): Promise<StoreSchema | null> {
-    return await this.storeModel.findOne({
-      webId,
-      name,
-      ...this.aclQuery(selfWebId),
-    });
   }
 
   private ifNotOwner(prop: string, selfWebId: string | null, otherwise: any) {
@@ -245,13 +280,40 @@ export class StoreService {
           ...this.modifiedSinceQuery(options?.modifiedSince),
         },
       },
+      {
+        $sort: { lastModified: 1 },
+      },
+      // Group by webId and name and reduce to only the latest
+      // version of each document
+      {
+        $group: {
+          _id: { webId: "$webId", name: "$name" },
+          value: { $last: "$value" },
+          webId: { $last: "$webId" },
+          name: { $last: "$name" },
+          lastModified: { $last: "$lastModified" },
+          acl: { $last: "$acl" },
+          channels: { $last: "$channels" },
+          infoHashes: { $last: "$infoHashes" },
+          tombstone: { $last: "$tombstone" },
+        },
+      },
+      // Mask out the value if the object has been deleted
+      // (ie tombstone is true)
       // Mask out the _id and if user is not the owner
       // and filter infoHashes and channels to only
       // the supplied infoHashes
       {
         $project: {
           _id: 0,
-          value: 1,
+          tombstone: 1,
+          value: {
+            $cond: {
+              if: "$tombstone",
+              then: "$$REMOVE",
+              else: "$value",
+            },
+          },
           webId: 1,
           name: 1,
           lastModified: 1,

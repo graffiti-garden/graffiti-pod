@@ -13,12 +13,12 @@ function uniqueStringArrayValidator(v: any) {
 }
 
 @Schema({
-  optimisticConcurrency: true,
   minimize: false,
   timestamps: {
     createdAt: false,
     updatedAt: "lastModified",
   },
+  validateBeforeSave: true,
 })
 export class StoreSchema {
   lastModified: Date;
@@ -78,6 +78,12 @@ export class StoreSchema {
     },
   })
   acl?: string[];
+
+  @Prop({
+    type: Boolean,
+    default: false,
+  })
+  tombstone: boolean;
 }
 
 export const StoreMongooseSchema = SchemaFactory.createForClass(StoreSchema);

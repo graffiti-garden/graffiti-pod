@@ -76,29 +76,28 @@ export class StoreController {
     @WebId() selfWebId: string | null,
     @Response({ passthrough: true }) response: FastifyReply,
   ) {
-    const patches = new Map<string, Operation[] | undefined>();
+    if (!Array.isArray(valuePatch)) {
+      throw new BadRequestException("Invalid value patch");
+    }
+    const patches: {
+      value: Operation[];
+      acl?: Operation[];
+      channels?: Operation[];
+    } = { value: valuePatch };
     for (const [key, patchStringArray] of [
       ["channels", channelsPatchStringArray],
       ["acl", aclPatchStringArray],
     ] as const) {
-      let patched: Operation[] | undefined;
       try {
-        patched = patchStringArray?.map((patchString) =>
+        patches[key] = patchStringArray?.map((patchString) =>
           JSON.parse(patchString),
         );
       } catch {
         throw new BadRequestException(`Invalid ${key} patch`);
       }
-      patches.set(key, patched);
     }
     this.storeService.validateWebId(webId, selfWebId);
-    const patched = await this.storeService.patchObject(
-      webId,
-      name,
-      valuePatch,
-      patches.get("acl"),
-      patches.get("channels"),
-    );
+    const patched = await this.storeService.patchObject(webId, name, patches);
     return this.storeService.returnObject(patched, selfWebId, response);
   }
 

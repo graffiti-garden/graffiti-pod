@@ -233,10 +233,12 @@ describe("StoreService", () => {
 
     await new Promise<void>((r) => setTimeout(r, 200));
 
-    const previous = await service.patchObject(go.webId, go.name, [
-      { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
-      { op: "add", path: `/newthing`, value: "new" },
-    ]);
+    const previous = await service.patchObject(go.webId, go.name, {
+      value: [
+        { op: "replace", path: `/${Object.keys(go.value)[0]}`, value: 42 },
+        { op: "add", path: `/newthing`, value: "new" },
+      ],
+    });
     expect(previous?.value).toStrictEqual(result.value);
 
     const resultPatched = await service.getObject(go.webId, go.name, go.webId);
@@ -254,19 +256,23 @@ describe("StoreService", () => {
     go.value = { counter: 1 };
     await service.putObject(go);
 
-    const previous = await service.patchObject(go.webId, go.name, [
-      { op: "test", path: "/counter", value: 1 },
-      { op: "replace", path: "/counter", value: 2 },
-    ]);
+    const previous = await service.patchObject(go.webId, go.name, {
+      value: [
+        { op: "test", path: "/counter", value: 1 },
+        { op: "replace", path: "/counter", value: 2 },
+      ],
+    });
     expect(previous?.value).toStrictEqual(go.value);
     const result = await service.getObject(go.webId, go.name, go.webId);
     expect(result?.value).toHaveProperty("counter", 2);
 
     try {
-      await service.patchObject(go.webId, go.name, [
-        { op: "test", path: "/counter", value: 1 },
-        { op: "replace", path: "/counter", value: 2 },
-      ]);
+      await service.patchObject(go.webId, go.name, {
+        value: [
+          { op: "test", path: "/counter", value: 1 },
+          { op: "replace", path: "/counter", value: 2 },
+        ],
+      });
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.status).toBe(412);
@@ -285,7 +291,9 @@ describe("StoreService", () => {
     ];
 
     try {
-      const patched = await service.patchObject(go.webId, go.name, patch);
+      const patched = await service.patchObject(go.webId, go.name, {
+        value: patch,
+      });
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.status).toBe(422);
@@ -295,9 +303,9 @@ describe("StoreService", () => {
   });
 
   it("patch nonexistant object", async () => {
-    const patched = await service.patchObject(randomString(), randomString(), [
-      { op: "replace", path: "/test", value: 0 },
-    ]);
+    const patched = await service.patchObject(randomString(), randomString(), {
+      value: [{ op: "replace", path: "/test", value: 0 }],
+    });
 
     expect(patched).toBeNull();
   });
@@ -311,9 +319,9 @@ describe("StoreService", () => {
     const jobs: Promise<StoreSchema | null>[] = [];
     for (let i = 0; i < 1000; i++) {
       jobs.push(
-        service.patchObject(go.webId, go.name, [
-          { op: "replace", path: "/something", value: 0 },
-        ]),
+        service.patchObject(go.webId, go.name, {
+          value: [{ op: "replace", path: "/something", value: 0 }],
+        }),
       );
     }
 
@@ -335,13 +343,10 @@ describe("StoreService", () => {
     await service.putObject(go);
 
     const newChannel = randomString();
-    await service.patchObject(
-      go.webId,
-      go.name,
-      [],
-      [{ op: "add", path: "", value: [] }],
-      [{ op: "add", path: "/-", value: newChannel }],
-    );
+    await service.patchObject(go.webId, go.name, {
+      acl: [{ op: "add", path: "", value: [] }],
+      channels: [{ op: "add", path: "/-", value: newChannel }],
+    });
     const patched = await service.getObject(go.webId, go.name, go.webId);
 
     expect(patched?.channels[2]).toEqual(newChannel);
@@ -352,13 +357,9 @@ describe("StoreService", () => {
     const go = randomGraffitiObject();
     await service.putObject(go);
     try {
-      await service.patchObject(
-        go.webId,
-        go.name,
-        [],
-        [],
-        [{ op: "replace", path: "", value: null }],
-      );
+      await service.patchObject(go.webId, go.name, {
+        channels: [{ op: "replace", path: "", value: null }],
+      });
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.status).toBe(422);
@@ -371,13 +372,9 @@ describe("StoreService", () => {
     go.channels = [randomString(), randomString()];
     await service.putObject(go);
     try {
-      await service.patchObject(
-        go.webId,
-        go.name,
-        [],
-        [],
-        [{ op: "add", path: "/-", value: go.channels[0] }],
-      );
+      await service.patchObject(go.webId, go.name, {
+        channels: [{ op: "add", path: "/-", value: go.channels[0] }],
+      });
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.status).toBe(422);
@@ -390,13 +387,9 @@ describe("StoreService", () => {
     go.channels = [randomString(), randomString()];
     await service.putObject(go);
     try {
-      await service.patchObject(
-        go.webId,
-        go.name,
-        [],
-        [],
-        [{ op: "add", path: "/something", value: randomString() }],
-      );
+      await service.patchObject(go.webId, go.name, {
+        channels: [{ op: "add", path: "/something", value: randomString() }],
+      });
     } catch (e) {
       expect(e).toBeInstanceOf(HttpException);
       expect(e.status).toBe(422);
@@ -615,12 +608,9 @@ describe("StoreService", () => {
 
     it("query for changed ACL", async () => {
       await service.putObject(go);
-      await service.patchObject(
-        go.webId,
-        go.name,
-        [],
-        [{ op: "add", path: "", value: [] }],
-      );
+      await service.patchObject(go.webId, go.name, {
+        acl: [{ op: "add", path: "", value: [] }],
+      });
       const iterator = service.queryObjects(infoHashes, null);
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);
@@ -630,9 +620,9 @@ describe("StoreService", () => {
 
     it("query for changed channels", async () => {
       await service.putObject(go);
-      await service.patchObject(go.webId, go.name, [], undefined, [
-        { op: "replace", path: "", value: [] },
-      ]);
+      await service.patchObject(go.webId, go.name, {
+        channels: [{ op: "replace", path: "", value: [] }],
+      });
       const iterator = service.queryObjects(infoHashes, null);
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);

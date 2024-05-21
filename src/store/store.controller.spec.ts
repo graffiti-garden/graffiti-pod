@@ -169,14 +169,17 @@ describe("StoreController", () => {
 
   it("patch", async () => {
     const url = toUrl(randomString());
-    await request(solidFetch, url, "PUT", { body: {} });
+    await request(solidFetch, url, "PUT", { body: { before: "something" } });
 
     const response = await request(solidFetch, url, "PATCH", {
-      body: [{ op: "add", path: "/hello", value: "world" }] as Operation[],
+      body: [
+        { op: "remove", path: "/before" },
+        { op: "add", path: "/hello", value: "world" },
+      ] as Operation[],
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("channels")).toBe("");
-    await expect(response.json()).resolves.toEqual({ hello: "world" });
+    await expect(response.json()).resolves.toEqual({ before: "something" });
 
     const getResponse = await fetch(url);
     expect(getResponse.status).toBe(200);
@@ -211,9 +214,9 @@ describe("StoreController", () => {
     const url = toUrl(randomString());
     await request(solidFetch, url, "PUT", { body: {} });
     const response = await request(solidFetch, url, "PATCH", {
-      body: {},
+      body: { notanarray: true },
     });
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(400);
   });
 
   it("patch channels and acl", async () => {
@@ -237,8 +240,10 @@ describe("StoreController", () => {
       ],
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("channels")).toBe("some-channel");
-    expect(response.headers.get("access-control-list")).toBe("some-acl");
+    const patched = await solidFetch(url);
+    expect(patched.status).toBe(200);
+    expect(patched.headers.get("channels")).toBe("some-channel");
+    expect(patched.headers.get("access-control-list")).toBe("some-acl");
   });
 
   it("delete non-existant", async () => {

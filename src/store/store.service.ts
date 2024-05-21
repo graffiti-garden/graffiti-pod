@@ -133,27 +133,21 @@ export class StoreService {
   async patchObject(
     webId: string,
     name: string,
-    valuePatch: Operation[],
-    aclPatch?: Operation[],
-    channelsPatch?: Operation[],
+    patches: {
+      value?: Operation[];
+      acl?: Operation[];
+      channels?: Operation[];
+    },
   ): Promise<StoreSchema | null> {
     // Get the original
     const doc = await this.getObject(webId, name, webId);
     if (!doc) return doc;
 
     // Patch it outside of the database
-    for (const [patch, prop] of [
-      [valuePatch, "value"],
-      [aclPatch, "acl"],
-      [channelsPatch, "channels"],
-    ] as const) {
-      if (!patch) continue;
+    for (const [prop, patch] of Object.entries(patches)) {
+      if (!patch || !patch.length) continue;
       try {
-        const patched = applyPatch(doc[prop], patch, true).newDocument;
-        // @ts-ignore
-        // If the patch is the wrong type, it will
-        // be caught by validateBeforeSave.
-        doc[prop] = patched;
+        doc[prop] = applyPatch(doc[prop], patch, true).newDocument;
       } catch (e) {
         if (e.name === "TEST_OPERATION_FAILED") {
           throw new PreconditionFailedException(e.message);

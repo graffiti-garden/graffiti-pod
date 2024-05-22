@@ -9,7 +9,7 @@ import {
 import { Socket } from "socket.io";
 import { StreamRequestService } from "../stream-request/stream-request.service";
 import { StoreService } from "../store/store.service";
-import { InfoHashService } from "../info-hash/info-hash.service";
+import { InfoHash } from "../info-hash/info-hash";
 import { QueryDTO } from "./stream.query.dto";
 import { UseFilters, UsePipes, ValidationPipe } from "@nestjs/common";
 import { WsValidationFilter } from "./stream.filter";
@@ -22,7 +22,6 @@ export class StreamGateway implements OnGatewayConnection {
   constructor(
     private readonly streamRequestService: StreamRequestService,
     private readonly storeService: StoreService,
-    private readonly infoHashService: InfoHashService,
   ) {}
 
   async handleConnection(socket: Socket) {
@@ -98,13 +97,7 @@ export class StreamGateway implements OnGatewayConnection {
   ): Promise<void | WsResponse<any>> {
     const challenge = socket.handshake.query.challenge as string;
     for (const [index, infoHash] of dto.infoHashes.entries()) {
-      if (
-        !this.infoHashService.verifyInfoHashAndPok(
-          infoHash,
-          dto.poks[index],
-          challenge,
-        )
-      ) {
+      if (!InfoHash.verifyInfoHashAndPok(infoHash, dto.poks[index])) {
         return {
           event: dto.id,
           data: {

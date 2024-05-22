@@ -9,11 +9,14 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { StoreSchema } from "./store.schema";
+import {
+  StoreSchema,
+  channelSchemaToChannels,
+  channelsToChannelSchema,
+} from "./store.schema";
 import { JsonPatchError, applyPatch } from "fast-json-patch";
 import type { Operation } from "fast-json-patch";
 import { FastifyReply } from "fastify";
-import { InfoHashService } from "../info-hash/info-hash.service";
 import type { JSONSchema4 } from "json-schema";
 import { encodeHeaderArray } from "../params/params.utils";
 
@@ -22,7 +25,6 @@ export class StoreService {
   constructor(
     @InjectModel(StoreSchema.name)
     private storeModel: Model<StoreSchema>,
-    private infoHashService: InfoHashService,
   ) {}
 
   validateWebId(targetWebId: string, selfWebId: string | null) {
@@ -52,24 +54,14 @@ export class StoreService {
         if (object.acl) {
           response.header("access-control-list", encodeHeaderArray(object.acl));
         }
-        response.header("channels", encodeHeaderArray(object.channels));
+        response.header(
+          "channels",
+          encodeHeaderArray(channelSchemaToChannels(object.channels)),
+        );
       }
       response.header("last-modified", object.lastModified.toUTCString());
       return object.value;
     }
-  }
-
-  assignInfoHashes(object: StoreSchema): void {
-    if (!object.channels) {
-      throw new UnprocessableEntityException("Channels are required");
-    }
-
-    object.infoHashes = object.channels.map<string>((channel: any) => {
-      if (typeof channel !== "string" || !channel) {
-        throw new UnprocessableEntityException("Channels must be strings");
-      }
-      return this.infoHashService.toInfoHash(channel);
-    });
   }
 
   async deleteObject(webId: string, name: string, modifiedBefore?: Date) {
@@ -107,9 +99,6 @@ export class StoreService {
   }
 
   async putObject(object: StoreSchema) {
-    // Add info hashes and tombstone
-    this.assignInfoHashes(object);
-
     // Try to insert the object
     let putObject: StoreSchema;
     try {
@@ -146,8 +135,11 @@ export class StoreService {
     // Patch it outside of the database
     for (const [prop, patch] of Object.entries(patches)) {
       if (!patch || !patch.length) continue;
+      const input =
+        prop === "channels" ? channelSchemaToChannels(doc[prop]) : doc[prop];
+      let patched: any;
       try {
-        doc[prop] = applyPatch(doc[prop], patch, true).newDocument;
+        patched = applyPatch(input, patch, true).newDocument;
       } catch (e) {
         if (e.name === "TEST_OPERATION_FAILED") {
           throw new PreconditionFailedException(e.message);
@@ -157,11 +149,16 @@ export class StoreService {
           throw e;
         }
       }
+      try {
+        doc[prop] =
+          prop === "channels" ? channelsToChannelSchema(patched) : patched;
+      } catch (e) {
+        throw new UnprocessableEntityException(
+          `Patch of ${prop} resulted in invalid data`,
+        );
+      }
       doc.markModified(prop);
     }
-
-    // Reassign the infohashes
-    this.assignInfoHashes(doc);
 
     // Force the doc to be new
     doc.isNew = true;
@@ -237,7 +234,7 @@ export class StoreService {
       },
       {
         $group: {
-          _id: "$channels",
+          _id: "$channels.value",
           lastModified: { $max: "$lastModified" },
         },
       },
@@ -269,7 +266,7 @@ export class StoreService {
       // the given time.
       {
         $match: {
-          infoHashes: { $elemMatch: { $in: infoHashes } },
+          channels: { $elemMatch: { infoHash: { $in: infoHashes } } },
           ...this.aclQuery(selfWebId),
           ...this.modifiedSinceQuery(options?.modifiedSince),
         },
@@ -288,7 +285,6 @@ export class StoreService {
           lastModified: { $last: "$lastModified" },
           acl: { $last: "$acl" },
           channels: { $last: "$channels" },
-          infoHashes: { $last: "$infoHashes" },
           tombstone: { $last: "$tombstone" },
         },
       },
@@ -312,37 +308,13 @@ export class StoreService {
           name: 1,
           lastModified: 1,
           acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
-          infoHashes: this.ifNotOwner("infoHashes", selfWebId, {
-            $filter: {
-              input: "$infoHashes",
-              as: "infoHash",
-              cond: { $in: ["$$infoHash", infoHashes] },
-            },
-          }),
           channels: this.ifNotOwner("channels", selfWebId, {
             $filter: {
-              input: {
-                $map: {
-                  input: "$infoHashes",
-                  as: "infoHash",
-                  in: {
-                    $cond: {
-                      if: {
-                        $in: ["$$infoHash", infoHashes],
-                      },
-                      then: {
-                        $arrayElemAt: [
-                          "$channels",
-                          { $indexOfArray: ["$infoHashes", "$$infoHash"] },
-                        ],
-                      },
-                      else: null,
-                    },
-                  },
-                },
-              },
+              input: "$channels",
               as: "channel",
-              cond: { $ne: ["$$channel", null] },
+              cond: {
+                $in: ["$$channel.infoHash", infoHashes],
+              },
             },
           }),
         },

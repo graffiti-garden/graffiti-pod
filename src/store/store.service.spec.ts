@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { StoreService } from "./store.service";
 import { RootMongooseModule } from "../app.module";
-import { StoreMongooseModule } from "./store.schema";
+import { StoreMongooseModule, channelSchemaToChannels } from "./store.schema";
 import {
   randomString,
   randomGraffitiObject,
@@ -9,22 +9,19 @@ import {
 } from "../test/utils";
 import { HttpException } from "@nestjs/common";
 import { Operation } from "fast-json-patch";
-import { InfoHashService } from "../info-hash/info-hash.service";
-import { StoreSchema } from "./store.schema";
+import { StoreSchema, channelsToChannelSchema } from "./store.schema";
 import { encodeHeaderArray } from "../params/params.utils";
 
 describe("StoreService", () => {
   let service: StoreService;
-  let infoHashService: InfoHashService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       imports: [RootMongooseModule, StoreMongooseModule],
-      providers: [StoreService, InfoHashService],
+      providers: [StoreService],
     }).compile();
 
     service = module.get<StoreService>(StoreService);
-    infoHashService = module.get<InfoHashService>(InfoHashService);
   });
 
   it("unauthorized", async () => {
@@ -54,13 +51,15 @@ describe("StoreService", () => {
 
   it("return same owner", async () => {
     const go = randomGraffitiObject();
-    go.channels = [randomString(), randomString()];
+    go.channels = channelsToChannelSchema([randomString(), randomString()]);
     go.acl = [randomString(), randomString()];
     go.lastModified = new Date();
     const response = responseMock();
     const returned = service.returnObject(go, go.webId, response);
     expect(returned).toStrictEqual(go.value);
-    expect(response.getHeader("Channels")).toBe(encodeHeaderArray(go.channels));
+    expect(response.getHeader("Channels")).toBe(
+      encodeHeaderArray(channelSchemaToChannels(go.channels)),
+    );
     expect(response.getHeader("Access-Control-List")).toBe(
       encodeHeaderArray(go.acl),
     );
@@ -71,7 +70,7 @@ describe("StoreService", () => {
 
   it("return different owner", async () => {
     const go = randomGraffitiObject();
-    go.channels = [randomString(), randomString()];
+    go.channels = channelsToChannelSchema([randomString(), randomString()]);
     go.acl = [randomString(), randomString()];
     go.lastModified = new Date();
     const response = responseMock();
@@ -107,6 +106,9 @@ describe("StoreService", () => {
     (go) => (go.channels = [undefined]),
     (go) => (go.channels = [null]),
     (go) => (go.channels = ["a", "a"]),
+    (go) => (go.channels = [{ value: "a" }]),
+    (go) => (go.channels = [{ infoHash: randomString(32) }]),
+    (go) => (go.channels = [{ value: "a", infoHash: randomString(31) }]),
   ]) {
     it("put invalid data", async () => {
       const go = randomGraffitiObject();
@@ -124,14 +126,11 @@ describe("StoreService", () => {
 
   it("put valid data", async () => {
     const go = randomGraffitiObject();
-    go.channels = [randomString(), randomString(), "🪿🕰️"];
-    await service.putObject(go);
-  });
-
-  it("good info hashes", async () => {
-    const go = randomGraffitiObject();
-    go.channels = [randomString()];
-    go.infoHashes = [randomString(32)];
+    go.channels = channelsToChannelSchema([
+      randomString(),
+      randomString(),
+      "🪿🕰️",
+    ]);
     await service.putObject(go);
   });
 
@@ -291,7 +290,7 @@ describe("StoreService", () => {
     ];
 
     try {
-      const patched = await service.patchObject(go.webId, go.name, {
+      await service.patchObject(go.webId, go.name, {
         value: patch,
       });
     } catch (e) {
@@ -339,7 +338,7 @@ describe("StoreService", () => {
 
   it("patch acl and channels", async () => {
     const go = randomGraffitiObject();
-    go.channels = [randomString(), randomString()];
+    go.channels = channelsToChannelSchema([randomString(), randomString()]);
     await service.putObject(go);
 
     const newChannel = randomString();
@@ -349,7 +348,7 @@ describe("StoreService", () => {
     });
     const patched = await service.getObject(go.webId, go.name, go.webId);
 
-    expect(patched?.channels[2]).toEqual(newChannel);
+    expect(patched?.channels[2].value).toEqual(newChannel);
     expect(patched?.acl).toEqual([]);
   });
 
@@ -369,7 +368,7 @@ describe("StoreService", () => {
 
   it("patch makes channels non-unique", async () => {
     const go = randomGraffitiObject();
-    go.channels = [randomString(), randomString()];
+    go.channels = channelsToChannelSchema([randomString(), randomString()]);
     await service.putObject(go);
     try {
       await service.patchObject(go.webId, go.name, {
@@ -384,7 +383,7 @@ describe("StoreService", () => {
 
   it("patch channels if an object", async () => {
     const go = randomGraffitiObject();
-    go.channels = [randomString(), randomString()];
+    go.channels = channelsToChannelSchema([randomString(), randomString()]);
     await service.putObject(go);
     try {
       await service.patchObject(go.webId, go.name, {
@@ -404,10 +403,8 @@ describe("StoreService", () => {
 
     beforeEach(() => {
       go = randomGraffitiObject();
-      go.channels = [randomString(), randomString()];
-      infoHashes = go.channels.map(
-        infoHashService.toInfoHash.bind(infoHashService),
-      );
+      go.channels = channelsToChannelSchema([randomString(), randomString()]);
+      infoHashes = go.channels.map<string>((c) => c.infoHash);
       webId = randomString();
     });
 
@@ -417,7 +414,6 @@ describe("StoreService", () => {
       const result = await iterator.next();
       expect(result.value["value"]).toStrictEqual(go.value);
       expect(result.value["channels"]).toStrictEqual(go.channels);
-      expect(result.value["infoHashes"]).toStrictEqual(infoHashes);
     });
 
     it("get and query authorized", async () => {
@@ -562,14 +558,13 @@ describe("StoreService", () => {
       const iterator = service.queryObjects([infoHashes[1]], webId);
       const result = await iterator.next();
       expect(result.value["channels"]).toStrictEqual([go.channels[1]]);
-      expect(result.value["infoHashes"]).toStrictEqual([go.infoHashes[1]]);
     });
 
-    it("query for acl, channels, infoHashes, as owner", async () => {
+    it("query for acl, channels as owner", async () => {
       go.acl = [webId];
       await service.putObject(go);
 
-      for (const property of ["acl", "channels", "infoHashes"]) {
+      for (const property of ["acl", "channels"]) {
         const iterator = service.queryObjects([infoHashes[1]], go.webId, {
           query: {
             required: [property],
@@ -639,10 +634,13 @@ describe("StoreService", () => {
   it("list all channels", async () => {
     const webId = randomString();
     const go1 = randomGraffitiObject();
-    go1.channels = [randomString(), randomString()];
+    go1.channels = channelsToChannelSchema([randomString(), randomString()]);
     go1.webId = webId;
     const go2 = randomGraffitiObject();
-    go2.channels = [randomString(), go1.channels[1]];
+    go2.channels = channelsToChannelSchema([
+      randomString(),
+      go1.channels[1].value,
+    ]);
     go2.webId = webId;
 
     await service.putObject(go1);
@@ -657,15 +655,15 @@ describe("StoreService", () => {
     }
     expect(channels.size).toBe(3);
     expect(channels.size).toEqual(count);
-    expect(channels.has(go1.channels[0])).toBe(true);
-    expect(channels.has(go1.channels[1])).toBe(true);
-    expect(channels.has(go2.channels[0])).toBe(true);
-    expect(channels.has(go2.channels[1])).toBe(true);
-    expect(channels.get(go2.channels[0])).toEqual(
-      channels.get(go2.channels[1]),
+    expect(channels.has(go1.channels[0].value)).toBe(true);
+    expect(channels.has(go1.channels[1].value)).toBe(true);
+    expect(channels.has(go2.channels[0].value)).toBe(true);
+    expect(channels.has(go2.channels[1].value)).toBe(true);
+    expect(channels.get(go2.channels[0].value)).toEqual(
+      channels.get(go2.channels[1].value),
     );
-    expect(channels.get(go1.channels[0])).not.toEqual(
-      channels.get(go1.channels[1]),
+    expect(channels.get(go1.channels[0].value)).not.toEqual(
+      channels.get(go1.channels[1].value),
     );
   });
 
@@ -673,7 +671,7 @@ describe("StoreService", () => {
     const webId = randomString();
     const go = randomGraffitiObject();
     go.webId = webId;
-    go.channels = [randomString(), randomString()];
+    go.channels = channelsToChannelSchema([randomString(), randomString()]);
     await service.putObject(go);
 
     const now = new Date();
@@ -684,7 +682,10 @@ describe("StoreService", () => {
 
     const go2 = randomGraffitiObject();
     go2.webId = webId;
-    go2.channels = [...go.channels, randomString(), randomString()];
+    go2.channels = [
+      ...go.channels,
+      ...channelsToChannelSchema([randomString(), randomString()]),
+    ];
     await service.putObject(go2);
 
     const secondIterator = service.listChannels(webId, {
@@ -699,8 +700,10 @@ describe("StoreService", () => {
     expect(channels.size).toBe(4);
     expect(channels.size).toEqual(count);
     for (const channel of go2.channels) {
-      expect(channels.has(channel)).toBe(true);
-      expect(channels.get(channel)).toEqual(channels.get(go2.channels[0]));
+      expect(channels.has(channel.value)).toBe(true);
+      expect(channels.get(channel.value)).toEqual(
+        channels.get(go2.channels[0].value),
+      );
     }
   });
 });

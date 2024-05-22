@@ -1,15 +1,40 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
 import { MongooseModule } from "@nestjs/mongoose";
+import { InfoHash } from "../info-hash/info-hash";
 
 export type StoreDocument = HydratedDocument<StoreSchema>;
 
-function uniqueStringArrayValidator(v: any) {
-  return (
-    Array.isArray(v) &&
-    v.every((e) => typeof e === "string") &&
-    new Set(v).size === v.length
-  );
+@Schema({
+  validateBeforeSave: true,
+  _id: false,
+})
+class ChannelSchema {
+  @Prop({ required: true })
+  value: string;
+
+  @Prop({
+    required: true,
+    validate: {
+      validator: (s: string) => /^[0-9a-fA-F]{64}$/.test(s),
+      message:
+        "Info hashes must be a unique array of hex strings, one for each channel.",
+    },
+  })
+  infoHash: string;
+}
+
+export function channelsToChannelSchema(channels: string[]): ChannelSchema[] {
+  return channels.map<ChannelSchema>((value) => ({
+    value,
+    infoHash: InfoHash.toInfoHash(value),
+  }));
+}
+
+export function channelSchemaToChannels(
+  channelSchemas: ChannelSchema[],
+): string[] {
+  return channelSchemas.map<string>((channelSchema) => channelSchema.value);
 }
 
 @Schema({
@@ -32,48 +57,36 @@ export class StoreSchema {
   @Prop({
     required: true,
     type: {},
-    validate: [
-      (v: any) => typeof v === "object" && !Array.isArray(v) && v !== null,
-      "Value must be an object.",
-    ],
+    validate: {
+      validator: (v: any) =>
+        typeof v === "object" && !Array.isArray(v) && v !== null,
+      message: "Value must be an object.",
+    },
   })
   value: Object;
 
   @Prop({
-    type: [String],
+    type: [ChannelSchema],
     required: true,
     default: undefined,
     validate: {
-      validator: uniqueStringArrayValidator,
-      message: "Channels must be a unique array of strings.",
+      validator: (v: any) =>
+        Array.isArray(v) &&
+        new Set(channelSchemaToChannels(v)).size === v.length,
+      message: "Channels must unique.",
     },
   })
-  channels: string[];
-
-  @Prop({
-    type: [String],
-    required: true,
-    default: undefined,
-    validate: {
-      validator: function (v: any) {
-        return (
-          uniqueStringArrayValidator(v) &&
-          v.length === this.channels.length &&
-          v.every((s: string) => /^[0-9a-fA-F]{64}$/.test(s))
-        );
-      },
-      message:
-        "Info hashes must be a unique array of hex strings, one for each channel.",
-    },
-  })
-  infoHashes: string[];
+  channels: ChannelSchema[];
 
   @Prop({
     type: [String],
     required: false,
     default: undefined,
     validate: {
-      validator: uniqueStringArrayValidator,
+      validator: (v: any) =>
+        Array.isArray(v) &&
+        v.every((e) => typeof e === "string") &&
+        new Set(v).size === v.length,
       message: "ACL must be a unique array of strings.",
     },
   })

@@ -13,7 +13,7 @@ import { DecodeParam } from "../params/decodeparam.decorator";
 import { WebId } from "../params/webid.decorator";
 import { Channels } from "../params/channels.decorator";
 import { AccessControlList } from "../params/acl.decorator";
-import { StoreSchema } from "./store.schema";
+import { StoreSchema, channelsToChannelSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 import { Operation } from "fast-json-patch";
@@ -45,7 +45,7 @@ export class StoreController {
     object.webId = webId;
     object.name = name;
     object.value = value;
-    object.channels = channels;
+    object.channels = channelsToChannelSchema(channels);
     object.acl = acl;
 
     const putted = await this.storeService.putObject(object);

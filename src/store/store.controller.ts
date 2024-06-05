@@ -6,8 +6,12 @@ import {
   Body,
   Response,
   Header,
+  Headers,
+  Post,
   BadRequestException,
+  StreamableFile,
 } from "@nestjs/common";
+import { Readable } from "stream";
 import { Controller } from "@nestjs/common";
 import { DecodeParam } from "../params/decodeparam.decorator";
 import { WebId } from "../params/webid.decorator";
@@ -17,18 +21,66 @@ import { StoreSchema, channelsToChannelSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 import { Operation } from "fast-json-patch";
+import { InfoHash } from "../info-hash/info-hash";
+import { rangeToSkipLimit } from "../params/params.utils";
 
 const CONTENT_TYPE = [
   "Content-Type",
   "application/json; charset=utf-8",
 ] as const;
 
-@Controller(":webId/:name")
+@Controller()
 export class StoreController {
   constructor(private storeService: StoreService) {}
 
   @Header(...CONTENT_TYPE)
-  @Put()
+  @Post()
+  async queryObjects(
+    @Body() query: any,
+    @WebId() selfWebId: string | null,
+    @Channels() obscuredChannels: string[],
+    @Headers("if-modified-since") modifiedSince?: Date,
+    @Headers("range") range?: string,
+  ) {
+    const { skip, limit } = rangeToSkipLimit(range);
+
+    let infoHashes: string[];
+    try {
+      infoHashes = obscuredChannels.map<string>((obscuredChannel) =>
+        InfoHash.verifyObscuredChannel(obscuredChannel),
+      );
+    } catch (e) {
+      throw new BadRequestException(e.message);
+    }
+
+    const iterator = this.storeService.queryObjects(infoHashes, selfWebId, {
+      query,
+      modifiedSince,
+      skip,
+      limit,
+    });
+
+    // Transform it to bytes
+    const byteIterator = (async function* () {
+      yield Buffer.from("[");
+      let first = true;
+      for await (const object of iterator) {
+        if (!first) {
+          yield Buffer.from(",");
+        }
+        first = false;
+        yield Buffer.from(JSON.stringify(object));
+      }
+      yield Buffer.from("]");
+    })();
+
+    // Return the iterator as a stream
+    const stream = Readable.from(byteIterator);
+    return new StreamableFile(stream);
+  }
+
+  @Header(...CONTENT_TYPE)
+  @Put(":webId/:name")
   async putObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -53,7 +105,7 @@ export class StoreController {
   }
 
   @Header(...CONTENT_TYPE)
-  @Delete()
+  @Delete(":webId/:name")
   async deleteObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -66,7 +118,7 @@ export class StoreController {
   }
 
   @Header(...CONTENT_TYPE)
-  @Patch()
+  @Patch(":webId/:name")
   async patchObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -102,7 +154,7 @@ export class StoreController {
   }
 
   @Header(...CONTENT_TYPE)
-  @Get()
+  @Get(":webId/:name")
   async getObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,

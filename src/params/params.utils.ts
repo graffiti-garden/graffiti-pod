@@ -22,3 +22,22 @@ export function headerArrayDecorator<T>(name: string, default_: T) {
     return default_;
   });
 }
+
+export function rangeToSkipLimit(range: string | undefined): {
+  skip?: number;
+  limit?: number;
+} {
+  if (!range) return {};
+
+  const value = range.split("=");
+  if (value.length < 2) return {};
+
+  const [start, end] = value[1].split("-");
+  let skip: number | undefined = parseInt(start, 10);
+  let limit: number | undefined = parseInt(end, 10) - skip + 1;
+
+  skip = isNaN(skip) ? undefined : skip;
+  limit = isNaN(limit) ? undefined : limit;
+
+  return { skip, limit };
+}

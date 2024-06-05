@@ -8,15 +8,17 @@ import { StoreModule } from "./store.module";
 import { RootMongooseModule } from "../app.module";
 import { encodeHeaderArray } from "../params/params.utils";
 import { Operation } from "fast-json-patch";
+import { InfoHash } from "../info-hash/info-hash";
 
 describe("StoreController", () => {
   let app: NestFastifyApplication;
   let solidFetch: typeof fetch;
   let webId: string;
   const port = 3000;
+  const baseUrl = `http://localhost:${port}`;
 
   function toUrl(name: string, webId_: string = webId) {
-    return `http://localhost:${port}/${encodeURIComponent(webId_)}/${encodeURIComponent(name)}`;
+    return `${baseUrl}/${encodeURIComponent(webId_)}/${encodeURIComponent(name)}`;
   }
 
   async function request(
@@ -261,5 +263,28 @@ describe("StoreController", () => {
 
     const responseGet = await fetch(url);
     expect(responseGet.status).toBe(404);
+  });
+
+  it("query basic", async () => {
+    const value = { [randomString()]: randomString() };
+    const channels = [randomString(), randomString()];
+    const url = toUrl(randomString());
+    await request(solidFetch, url, "PUT", { body: value, channels });
+    const obscuredChannels = channels.map<string>((c) =>
+      InfoHash.obscureChannel(c),
+    );
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels: obscuredChannels,
+      body: {},
+    });
+    expect(response.status).toBe(201);
+    const responseJson = await response.json();
+    expect(Array.isArray(responseJson)).toBe(true);
+    expect(responseJson).toHaveLength(1);
+    const output = responseJson[0];
+    expect(output.value).toEqual(value);
+    expect(output.channels.map((c) => c.value).sort()).toEqual(channels.sort());
+    expect(output.acl).toBeNull();
+    expect(output.tombstone).toBe(false);
   });
 });

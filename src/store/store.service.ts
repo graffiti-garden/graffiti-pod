@@ -257,6 +257,7 @@ export class StoreService {
       modifiedSince?: Date;
       query?: JSONSchema4;
       limit?: number;
+      skip?: number;
     },
   ): AsyncGenerator<StoreSchema, void, void> {
     const pipeline: PipelineStage[] = [
@@ -322,6 +323,9 @@ export class StoreService {
     ];
     if (options?.query) {
       pipeline.push({ $match: { $jsonSchema: options.query } });
+    }
+    if (options?.skip) {
+      pipeline.push({ $skip: options.skip });
     }
     if (options?.limit) {
       pipeline.push({ $limit: options.limit });

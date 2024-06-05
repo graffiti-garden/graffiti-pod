@@ -16,7 +16,7 @@ class ChannelSchema {
   @Prop({
     required: true,
     validate: {
-      validator: (s: string) => /^[0-9a-fA-F]{64}$/.test(s),
+      validator: (s: string) => /^[A-Za-z0-9_-]{43}$/.test(s),
       message:
         "Info hashes must be a unique array of hex strings, one for each channel.",
     },

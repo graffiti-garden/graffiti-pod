@@ -1,7 +1,17 @@
-import { InfoHash } from "./info-hash";
+import { InfoHash, base64Decode, base64Encode } from "./info-hash";
 import { randomString } from "../test/utils";
+import { randomBytes } from "@noble/hashes/utils";
 
-describe("InfoHashService", () => {
+it("base64 encode decode", () => {
+  for (const numBytes of [1, 7, 8, 9, 20, 32, 64]) {
+    const bytes = randomBytes(numBytes);
+    const encoded = base64Encode(bytes);
+    const decoded = base64Decode(encoded);
+    expect(decoded).toStrictEqual(bytes);
+  }
+});
+
+describe("InfoHash", () => {
   let channel: string;
   let infoHash: string;
   let pok: string;
@@ -28,5 +38,14 @@ describe("InfoHashService", () => {
 
   it("invalid pok", () => {
     expect(InfoHash.verifyInfoHashAndPok(infoHash, "")).toBe(false);
+  });
+
+  it("obscured channel", () => {
+    const obscured = InfoHash.obscureChannel(channel);
+    expect(InfoHash.verifyObscuredChannel(obscured)).toBe(infoHash);
+  });
+
+  it("bad obscured channel", () => {
+    expect(() => InfoHash.verifyObscuredChannel("asdlkfj.kdfjkdj")).toThrow();
   });
 });

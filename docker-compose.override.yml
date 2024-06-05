@@ -4,5 +4,10 @@ services:
   graffiti-pod:
     ports:
       - 3000:3000
-    # Entrypoint just to hang the container
-    entrypoint: ["tail", "-f", "/dev/null"]
+    # Print instructions then hang the container
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "echo 'Container up! In another tab run\nsudo docker compose exec graffiti-pod sh\nto enter the container.' && tail -f /dev/null",
+      ]

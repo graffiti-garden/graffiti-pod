@@ -29,10 +29,12 @@ export class StoreService {
 
   validateWebId(targetWebId: string, selfWebId: string | null) {
     if (!selfWebId) {
-      throw new UnauthorizedException();
+      throw new UnauthorizedException(
+        "You must be logged in to access this resource.",
+      );
     }
     if (targetWebId !== selfWebId) {
-      throw new ForbiddenException();
+      throw new ForbiddenException("You are not the owner of this resource.");
     }
   }
 
@@ -47,7 +49,9 @@ export class StoreService {
         response.status(201);
         return;
       } else {
-        throw new NotFoundException();
+        throw new NotFoundException(
+          "Cannot GET object - either it does not exist or you do not have access to it.",
+        );
       }
     } else {
       if (selfWebId === object.webId) {

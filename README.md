@@ -31,7 +31,7 @@ docker compose down --remove-orphans
 ### Testing
 
 Note that the web server must not be running to run tests.
-To run all tests, run the following within the container shell:
+To run all tests, run the following within the container shell created above:
 
 ```bash
 npm test
@@ -95,10 +95,8 @@ sudo systemctl restart graffiti-pod.service
 
 ## TODO:
 
-- patch acl and channels
-- tombstones
-  - tombstones for deleted items
-  - tombstones for items that have moved channels
-- list all channels
-- dht integration
-  - watcher for added or deleted channels
+- Create a recurring timer that deletes irrelevant tombstones
+  - Return the expiration time in a meta data hook, so clients can know when their cache is stale
+- Add an expiration field to the stored objects, and a timer that deletes them when they expire.
+  - As with the tombstone timer, return the expiration time in a meta data hook
+- Complete the DHT integration, with a watcher for added or deleted channels

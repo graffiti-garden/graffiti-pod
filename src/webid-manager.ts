@@ -8,15 +8,14 @@ import {
   setThing,
   getSourceUrl,
   createThing,
-  ThingPersisted,
   universalAccess,
+  ThingPersisted,
 } from "@inrupt/solid-client";
 
 const POD_PREDICATE = "https://graffiti.garden/ns/graffitiPod";
 
 export default class WebIdManager {
-  // TODO!
-  // private podCache = new Map<string, string[]>();
+  private podCache = new Map<string, string[]>();
 
   private async getProfile(
     webId: string,
@@ -56,14 +55,25 @@ export default class WebIdManager {
     );
   }
 
+  private extractAndCacheGraffitiPods(
+    webId: string,
+    profileThing: ThingPersisted,
+  ) {
+    const pods = getUrlAll(profileThing, POD_PREDICATE);
+    this.podCache.set(webId, pods);
+    return pods;
+  }
+
   async getGraffitiPods(
     webId: string,
     options?: {
       fetch?: typeof fetch;
     },
   ): Promise<string[]> {
+    const existingPods = this.podCache.get(webId);
+    if (existingPods) return existingPods;
     const { profileThing } = await this.getProfile(webId, options);
-    return getUrlAll(profileThing, POD_PREDICATE);
+    return this.extractAndCacheGraffitiPods(webId, profileThing);
   }
 
   async addGraffitiPod(
@@ -79,6 +89,7 @@ export default class WebIdManager {
     }
     const profileThingNew = addUrl(profileThing, POD_PREDICATE, graffitiPod);
     await this.saveProfile(profile, profileThingNew, options);
+    this.extractAndCacheGraffitiPods(webId, profileThingNew);
   }
 
   async removeGraffitiPod(
@@ -94,5 +105,6 @@ export default class WebIdManager {
     }
     const profileThingNew = removeUrl(profileThing, POD_PREDICATE, graffitiPod);
     await this.saveProfile(profile, profileThingNew, options);
+    this.extractAndCacheGraffitiPods(webId, profileThingNew);
   }
 }

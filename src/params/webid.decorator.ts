@@ -28,7 +28,12 @@ export const WebId = createParamDecorator(
     }
 
     const method = request.method as RequestMethod;
-    const protocol = "encrypted" in socket ? "https" : "http";
+    const protocol =
+      "x-forwarded-proto" in request.headers
+        ? request.headers["x-forwarded-proto"]
+        : "encrypted" in socket
+          ? "https"
+          : "http";
     const urlComplete = `${protocol}://${host}${url}`;
 
     let payload: SolidAccessTokenPayload;

@@ -30,7 +30,17 @@ docker compose down --remove-orphans
 
 ### Testing
 
-Note that the web server must not be running to run tests.
+Some of the tests require a Solid login, so in the root of the repository, create a `.env` file defining [static Solid login credentials](https://docs.inrupt.com/developer-tools/javascript/client-libraries/tutorial/authenticate-nodejs-script/#authenticate-with-statically-registered-client-credentials).
+You can register for free credentials at [Inrupt](https://login.inrupt.com/registration.html). For example:
+
+```bash
+SOLID_CLIENT_ID=12345678-1234-...
+SOLID_CLIENT_SECRET=12345678-1234-...
+SOLID_OIDC_ISSUER=https://login.inrupt.com
+```
+
+Also, make sure the web server is not be running as it conflicts with tests, i.e. kill `npm start`.
+
 To run all tests, run the following within the container shell created above:
 
 ```bash

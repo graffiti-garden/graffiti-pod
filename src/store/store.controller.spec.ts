@@ -262,7 +262,7 @@ describe("StoreController", () => {
     expect(responseGet.status).toBe(404);
   });
 
-  it("query basic", async () => {
+  it("query single", async () => {
     const value = { [randomString()]: randomString() };
     const channels = [randomString(), randomString()];
     const url = toUrl(randomString());
@@ -275,13 +275,47 @@ describe("StoreController", () => {
       body: {},
     });
     expect(response.status).toBe(201);
-    const responseJson = await response.json();
-    expect(Array.isArray(responseJson)).toBe(true);
-    expect(responseJson).toHaveLength(1);
-    const output = responseJson[0];
+    const output = await response.json();
     expect(output.value).toEqual(value);
     expect(output.channels.map((c) => c.value).sort()).toEqual(channels.sort());
     expect(output.acl).toBeNull();
     expect(output.tombstone).toBe(false);
+  });
+
+  it("query multiple", async () => {
+    const value1 = { [randomString()]: randomString() + "alskdjfk\n\n\\n" };
+    const value2 = { [randomString()]: randomString() + "\n😏" };
+    const channels1 = [randomString(), randomString()];
+    const channels2 = [randomString(), channels1[0]];
+    await request(solidFetch, toUrl(randomString()), "PUT", {
+      body: value1,
+      channels: channels1,
+    });
+    await request(solidFetch, toUrl(randomString()), "PUT", {
+      body: value2,
+      channels: channels2,
+    });
+
+    const channels = [InfoHash.obscureChannel(channels1[0])];
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels,
+    });
+    expect(response.status).toBe(201);
+    const output = await response.text();
+    console.log(output);
+    const parts = output.split("\n");
+    expect(parts.length).toBe(2);
+    const [first, second] = parts.map((p) => JSON.parse(p));
+    console.log(first);
+    expect(first.value).toEqual(value1);
+    expect(first.channels.map((c) => c.value).sort()).toEqual(channels1.sort());
+    expect(first.acl).toBeNull();
+    expect(first.tombstone).toBe(false);
+    expect(second.value).toEqual(value2);
+    expect(second.channels.map((c) => c.value).sort()).toEqual(
+      channels2.sort(),
+    );
+    expect(second.acl).toBeNull();
+    expect(second.tombstone).toBe(false);
   });
 });

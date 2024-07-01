@@ -62,16 +62,15 @@ export class StoreController {
 
     // Transform it to bytes
     const byteIterator = (async function* () {
-      yield Buffer.from("[");
       let first = true;
       for await (const object of iterator) {
         if (!first) {
-          yield Buffer.from(",");
+          yield Buffer.from("\n");
+        } else {
+          first = false;
         }
-        first = false;
         yield Buffer.from(JSON.stringify(object));
       }
-      yield Buffer.from("]");
     })();
 
     // Return the iterator as a stream

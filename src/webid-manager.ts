@@ -76,11 +76,22 @@ export default class WebIdManager {
     return this.extractAndCacheGraffitiPods(webId, profileThing);
   }
 
+  async hasGraffitiPod(
+    webId: string,
+    graffitiPod: string,
+    options?: {
+      fetch?: typeof fetch;
+    },
+  ) {
+    const pods = await this.getGraffitiPods(webId, options);
+    return pods.includes(graffitiPod);
+  }
+
   async addGraffitiPod(
     webId: string,
     graffitiPod: string,
-    options: {
-      fetch: typeof fetch;
+    options?: {
+      fetch?: typeof fetch;
     },
   ) {
     const { profile, profileThing } = await this.getProfile(webId, options);
@@ -95,8 +106,8 @@ export default class WebIdManager {
   async removeGraffitiPod(
     webId: string,
     graffitiPod: string,
-    options: {
-      fetch: typeof fetch;
+    options?: {
+      fetch?: typeof fetch;
     },
   ) {
     const { profile, profileThing } = await this.getProfile(webId, options);

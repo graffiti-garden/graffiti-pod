@@ -1,0 +1,29 @@
+{
+  "name": "@graffiti-garden/pod-client",
+  "version": "0.0.0",
+  "description": "client for the graffiti pod",
+  "type": "module",
+  "main": "src/index.ts",
+  "browser": "dist/index.js",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "generate-token": "npx @inrupt/generate-oidc-token",
+    "test": "vitest",
+    "build": "node esbuild.config.js",
+    "demo": "npm run build && python3 -m http.server",
+    "prepublishOnly": "npm test && npm run build"
+  },
+  "author": "Theia Henderson",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@inrupt/solid-client-authn-node": "^2.2.1",
+    "esbuild": "^0.22.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@inrupt/solid-client": "^2.0.1"
+  }
+}

@@ -31,18 +31,16 @@ describe("StoreController", () => {
       acl?: string[];
     },
   ) {
-    const headers = {
-      "Content-Type": "application/json",
-    };
+    const init: RequestInit = { method, headers: {} };
+    if (options?.body) {
+      init.headers!["Content-Type"] = "application/json";
+      init.body = JSON.stringify(options.body);
+    }
     if (options?.channels) {
-      headers["Channels"] = encodeHeaderArray(options.channels);
+      init.headers!["Channels"] = encodeHeaderArray(options.channels);
     }
     if (options?.acl) {
-      headers["Access-Control-List"] = encodeHeaderArray(options.acl);
-    }
-    const init: RequestInit = { method, headers };
-    if (options?.body) {
-      init.body = JSON.stringify(options.body);
+      init.headers!["Access-Control-List"] = encodeHeaderArray(options.acl);
     }
     return await fetch_(url, init);
   }
@@ -218,14 +216,13 @@ describe("StoreController", () => {
     const response = await request(solidFetch, url, "PATCH", {
       body: { notanarray: true },
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
   });
 
   it("patch channels and acl", async () => {
     const url = toUrl(randomString());
     await request(solidFetch, url, "PUT", { body: {} });
     const response = await request(solidFetch, url, "PATCH", {
-      body: [],
       acl: [
         JSON.stringify({
           op: "add",

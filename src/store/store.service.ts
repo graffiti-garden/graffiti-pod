@@ -138,7 +138,13 @@ export class StoreService {
 
     // Patch it outside of the database
     for (const [prop, patch] of Object.entries(patches)) {
-      if (!patch || !patch.length) continue;
+      if (!patch) continue;
+      if (!Array.isArray(patch)) {
+        throw new UnprocessableEntityException(
+          `Patch of ${prop} must be an array`,
+        );
+      }
+      if (!patch.length) continue;
       const input =
         prop === "channels" ? channelSchemaToChannels(doc[prop]) : doc[prop];
       let patched: any;

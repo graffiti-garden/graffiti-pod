@@ -128,14 +128,14 @@ export class StoreController {
     @WebId() selfWebId: string | null,
     @Response({ passthrough: true }) response: FastifyReply,
   ) {
-    if (!Array.isArray(valuePatch)) {
-      throw new BadRequestException("Invalid value patch");
-    }
     const patches: {
-      value: Operation[];
+      value?: Operation[];
       acl?: Operation[];
       channels?: Operation[];
-    } = { value: valuePatch };
+    } = {};
+    if (valuePatch) {
+      patches.value = valuePatch;
+    }
     for (const [key, patchStringArray] of [
       ["channels", channelsPatchStringArray],
       ["acl", aclPatchStringArray],

@@ -1,18 +1,25 @@
 import WebIdManager from "./webid-manager";
+import type { Operation as JSONPatchOperation } from "fast-json-patch";
 
-interface GraffitiLocation {
+export interface GraffitiLocation {
   name: string;
   webId: string;
   graffitiPod: string;
 }
 
-interface GraffitiLocalObject {
+export interface GraffitiLocalObject {
   value: any;
   channels?: string[];
   acl?: string[];
 }
 
-type GraffitiObject = GraffitiLocation &
+export interface GraffitiPatch {
+  value?: JSONPatchOperation[];
+  channels?: JSONPatchOperation[];
+  acl?: JSONPatchOperation[];
+}
+
+export type GraffitiObject = GraffitiLocation &
   GraffitiLocalObject & {
     lastModified: Date;
   };
@@ -177,6 +184,43 @@ export default class GraffitiClient {
     const response = await (options?.fetch ?? fetch)(url, {
       method: "DELETE",
     });
+    return GraffitiClient.parseGraffitiObjectResponse(response, location);
+  }
+
+  async patch(
+    patch: GraffitiPatch,
+    location: GraffitiLocation,
+    options?: { fetch?: typeof fetch },
+  ): Promise<GraffitiObject>;
+  async patch(
+    patch: GraffitiPatch,
+    url: string,
+    options?: { fetch?: typeof fetch },
+  ): Promise<GraffitiObject>;
+  async patch(
+    patch: GraffitiPatch,
+    locationOrUrl: GraffitiLocation | string,
+    options?: { fetch?: typeof fetch },
+  ): Promise<GraffitiObject> {
+    const { location, url } = GraffitiClient.parseLocationOrUrl(locationOrUrl);
+
+    const requestInit: RequestInit = { method: "PATCH", headers: {} };
+    if (patch.value) {
+      requestInit.headers!["Content-Type"] = "application/json-patch+json";
+      requestInit.body = JSON.stringify(patch.value);
+    }
+    for (const [prop, key] of [
+      ["acl", "Access-Control-List"],
+      ["channels", "Channels"],
+    ] as const) {
+      if (patch[prop]) {
+        requestInit.headers![key] = patch[prop]
+          .map((p) => JSON.stringify(p))
+          .map(encodeURIComponent)
+          .join(",");
+      }
+    }
+    const response = await (options?.fetch ?? fetch)(url, requestInit);
     return GraffitiClient.parseGraffitiObjectResponse(response, location);
   }
 }

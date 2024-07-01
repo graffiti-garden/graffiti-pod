@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import * as secrets from "../.secrets.json";
 import { Session } from "@inrupt/solid-client-authn-node";
-import GraffitiClient from ".";
+import GraffitiClient, { GraffitiPatch } from ".";
 
 const session = new Session({ keepAlive: true });
 await session.login(secrets);
@@ -18,6 +18,13 @@ function randomLocation() {
     graffitiPod: "https://pod.graffiti.garden",
   };
 }
+
+it("url and location", async () => {
+  const location = randomLocation();
+  const url = GraffitiClient.toUrl(location);
+  const location2 = GraffitiClient.fromUrl(url);
+  expect(location).toEqual(location2);
+});
 
 it("Put, replace, delete", async () => {
   const value = {
@@ -91,4 +98,39 @@ it("put and get with access control", async () => {
       statusCode: 404,
     }),
   );
+});
+
+it("patch value", async () => {
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  const value = {
+    something: "hello, world~ c:",
+  };
+  await graffiti.put({ value }, location, { fetch });
+
+  const patch: GraffitiPatch = {
+    value: [{ op: "replace", path: "/something", value: "goodbye, world~ c:" }],
+  };
+  await graffiti.patch(patch, location, { fetch });
+  const gotten = await graffiti.get(location);
+  expect(gotten.value).toEqual({
+    something: "goodbye, world~ c:",
+  });
+  await graffiti.delete(location, { fetch });
+});
+
+it("patch channels", async () => {
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  await graffiti.put({ value: {}, channels: ["helloooo"] }, location, {
+    fetch,
+  });
+
+  const patch: GraffitiPatch = {
+    channels: [{ op: "replace", path: "/0", value: "goodbye" }],
+  };
+  await graffiti.patch(patch, location, { fetch });
+  const gotten = await graffiti.get(location, { fetch });
+  expect(gotten.channels).toEqual(["goodbye"]);
+  await graffiti.delete(location, { fetch });
 });

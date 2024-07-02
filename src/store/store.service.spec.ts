@@ -465,6 +465,20 @@ describe("StoreService", () => {
       await expect(iterator.next()).resolves.toHaveProperty("done", true);
     });
 
+    it("query order", async () => {
+      await service.putObject(go);
+      const go2 = randomGraffitiObject();
+      go2.channels = go.channels;
+      await service.putObject(go2);
+
+      // Objects appear in order they were placed
+      const iterator = service.queryObjects(infoHashes, webId);
+      const result1 = await iterator.next();
+      expect(result1.value["value"]).toEqual(go.value);
+      const result2 = await iterator.next();
+      expect(result2.value["value"]).toEqual(go2.value);
+    });
+
     it("query limited", async () => {
       for (let i = 0; i < 10; i++) {
         go.name = randomString();

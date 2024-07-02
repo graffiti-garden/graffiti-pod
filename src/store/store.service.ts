@@ -334,6 +334,8 @@ export class StoreService {
     if (options?.query) {
       pipeline.push({ $match: { $jsonSchema: options.query } });
     }
+    // Sort again after grouping/querying
+    pipeline.push({ $sort: { lastModified: 1 } });
     if (options?.skip) {
       pipeline.push({ $skip: options.skip });
     }

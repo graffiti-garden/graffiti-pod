@@ -1,5 +1,7 @@
+import { JSONSchema4 } from "json-schema";
 import WebIdManager from "./webid-manager";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
+import { obscureChannel } from "./info-hash";
 
 export interface GraffitiLocation {
   name: string;
@@ -23,6 +25,8 @@ export type GraffitiObject = GraffitiLocation &
   GraffitiLocalObject & {
     lastModified: Date;
   };
+
+const decoder = new TextDecoder();
 
 export default class GraffitiClient {
   private webIdManager = new WebIdManager();
@@ -222,5 +226,72 @@ export default class GraffitiClient {
     }
     const response = await (options?.fetch ?? fetch)(url, requestInit);
     return GraffitiClient.parseGraffitiObjectResponse(response, location);
+  }
+
+  async *query(
+    channels: string[],
+    podUrl: string,
+    options?: {
+      query?: JSONSchema4;
+      modifiedSince?: Date;
+      limit?: number;
+      skip?: number;
+      fetch?: typeof fetch;
+    },
+  ): AsyncGenerator<GraffitiObject, void, void> {
+    const requestInit: RequestInit = { method: "POST", headers: {} };
+
+    requestInit.headers!["Channels"] = channels
+      .map((c) => obscureChannel(c, podUrl))
+      .join(",");
+
+    if (options) {
+      if (options.query) {
+        requestInit.headers!["Content-Type"] = "application/schema+json";
+        requestInit.body = JSON.stringify(options.query);
+      }
+      if (options.modifiedSince) {
+        requestInit.headers!["If-Modified-Since"] =
+          options.modifiedSince.toISOString();
+      }
+      if (options.limit || options?.skip) {
+        requestInit.headers!["Range"] =
+          `=${options.skip ?? ""}-${options.limit ?? ""}`;
+      }
+    }
+
+    const response = await (options?.fetch ?? fetch)(podUrl, requestInit);
+    if (!response.ok) {
+      throw new Error(`Failed to query Graffiti pod: ${response.statusText}`);
+    }
+
+    // Parse the body as a readable stream
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Failed to get a reader from the response body");
+    }
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+
+      if (value) {
+        buffer += decoder.decode(value);
+        const parts = buffer.split("\n");
+        buffer = parts.pop() ?? "";
+        for (const part of parts) {
+          const graffitiObject = JSON.parse(part) as GraffitiObject;
+          graffitiObject.graffitiPod = podUrl;
+          yield graffitiObject;
+        }
+      }
+
+      if (done) break;
+    }
+    // Clear the buffer
+    if (buffer) {
+      const graffitiObject = JSON.parse(buffer) as GraffitiObject;
+      graffitiObject.graffitiPod = podUrl;
+      yield graffitiObject;
+    }
   }
 }

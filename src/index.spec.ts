@@ -2,6 +2,8 @@ import { it, expect } from "vitest";
 import * as secrets from "../.secrets.json";
 import { Session } from "@inrupt/solid-client-authn-node";
 import GraffitiClient, { GraffitiPatch } from ".";
+import { randomBytes } from "@noble/hashes/utils";
+import { base64Encode } from "./info-hash";
 
 const session = new Session({ keepAlive: true });
 await session.login(secrets);
@@ -11,11 +13,22 @@ if (!session.info.isLoggedIn || !session.info.webId) {
 const fetch = session.fetch;
 const webId = session.info.webId;
 
+function randomString() {
+  return base64Encode(randomBytes(16));
+}
+
+function randomValue() {
+  return {
+    [randomString()]: randomString(),
+  };
+}
+
+const homePod = "https://pod.graffiti.garden";
 function randomLocation() {
   return {
-    name: Math.random().toString(36).substring(7),
+    name: randomString(),
     webId,
-    graffitiPod: "https://pod.graffiti.garden",
+    graffitiPod: homePod,
   };
 }
 
@@ -134,3 +147,43 @@ it("patch channels", async () => {
   expect(gotten.channels).toEqual(["goodbye"]);
   await graffiti.delete(location, { fetch });
 });
+
+it("query single", async () => {
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  const value = randomValue();
+  const channels = [randomString(), randomString()];
+
+  await graffiti.put({ value, channels }, location, { fetch });
+
+  const iterator = graffiti.query(channels, homePod, { fetch });
+  const result = await iterator.next();
+  expect(result.done).toBe(false);
+  console.log(result.value);
+  expect(result.value?.value).toEqual(value);
+  const result2 = await iterator.next();
+  expect(result2.done).toBe(true);
+});
+
+it("query multiple", async () => {
+  const graffiti = new GraffitiClient();
+  const channels = [randomString(), randomString()];
+  const values = [randomValue(), randomValue()];
+  await graffiti.put({ value: values[0], channels }, randomLocation(), {
+    fetch,
+  });
+  await graffiti.put({ value: values[1], channels }, randomLocation(), {
+    fetch,
+  });
+  const iterator = graffiti.query(channels, homePod, { fetch });
+  const result1 = await iterator.next();
+  expect(result1.value?.value).toEqual(values[0]);
+  const result2 = await iterator.next();
+  expect(result2.value?.value).toEqual(values[1]);
+  const result3 = await iterator.next();
+  expect(result3.done).toBe(true);
+});
+
+// TODO:
+// make channels have a more reasonable return.
+// do all

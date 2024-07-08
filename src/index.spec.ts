@@ -234,6 +234,117 @@ it("query with last modified", async () => {
   expect(result2.done).toBe(true);
 });
 
+it("query with skip", async () => {
+  const graffiti = new GraffitiClient();
+  const channels = [randomString(), randomString()];
+  for (let i = 0; i < 10; i++) {
+    await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
+      fetch,
+    });
+  }
+
+  {
+    const iterator = graffiti.query(channels, homePod, {
+      fetch,
+      skip: 5,
+    });
+    for (let i = 0; i < 5; i++) {
+      const result = await iterator.next();
+      expect(result.value?.value).toEqual({ index: i + 5 });
+    }
+    const result = await iterator.next();
+    expect(result.done).toBe(true);
+  }
+
+  {
+    const iterator = graffiti.query(channels, homePod, {
+      fetch,
+      skip: 0,
+    });
+    for (let i = 0; i < 10; i++) {
+      const result = await iterator.next();
+      expect(result.value?.value).toEqual({ index: i });
+    }
+    const result = await iterator.next();
+    expect(result.done).toBe(true);
+  }
+
+  {
+    const iterator = graffiti.query(channels, homePod, {
+      fetch,
+      skip: 10,
+    });
+    const result = await iterator.next();
+    expect(result.done).toBe(true);
+  }
+});
+
+it("bad skip", async () => {
+  const graffiti = new GraffitiClient();
+  const iterator = graffiti.query([], homePod, {
+    fetch,
+    skip: -10,
+  });
+  await expect(iterator.next()).rejects.toThrow();
+});
+
+it("bad limit", async () => {
+  const graffiti = new GraffitiClient();
+  const iterator = graffiti.query([], homePod, {
+    fetch,
+    limit: -10,
+  });
+  await expect(iterator.next()).rejects.toThrow();
+  const iterator2 = graffiti.query([], homePod, {
+    fetch,
+    limit: 0,
+  });
+  await expect(iterator2.next()).rejects.toThrow();
+});
+
+it("query with limit", async () => {
+  const graffiti = new GraffitiClient();
+  const channels = [randomString(), randomString()];
+  for (let i = 0; i < 10; i++) {
+    await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
+      fetch,
+    });
+  }
+
+  const iterator = graffiti.query(channels, homePod, {
+    fetch,
+    limit: 5,
+  });
+  for (let i = 0; i < 5; i++) {
+    const result = await iterator.next();
+    expect(result.value?.value).toEqual({ index: i });
+  }
+  const result = await iterator.next();
+  expect(result.done).toBe(true);
+});
+
+it("query with skip and limit", async () => {
+  const graffiti = new GraffitiClient();
+  const channels = [randomString(), randomString()];
+  for (let i = 0; i < 10; i++) {
+    await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
+      fetch,
+    });
+  }
+
+  const iterator = graffiti.query(channels, homePod, {
+    fetch,
+    skip: 3,
+    limit: 5,
+  });
+  for (let i = 0; i < 5; i++) {
+    const result = await iterator.next();
+    expect(result.value?.value).toEqual({ index: i + 3 });
+  }
+  const result = await iterator.next();
+  expect(result.done).toBe(true);
+});
+
 // TODO:
 // make channels have a more reasonable return
 // (server side or client...)

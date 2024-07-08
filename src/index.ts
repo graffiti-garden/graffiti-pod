@@ -285,9 +285,18 @@ export default class GraffitiClient {
         requestInit.headers!["If-Modified-Since"] =
           options.ifModifiedSince.toISOString();
       }
-      if (options.limit || options?.skip) {
+      if (
+        typeof options.limit === "number" ||
+        typeof options.skip === "number"
+      ) {
+        if (typeof options.skip === "number" && options?.skip < 0) {
+          throw new Error("The skip must be non-negative.");
+        }
+        if (typeof options.limit === "number" && options?.limit < 1) {
+          throw new Error("The limit must be at least 1.");
+        }
         requestInit.headers!["Range"] =
-          `=${options.skip ?? ""}-${options.limit ?? ""}`;
+          `=${options.skip ?? ""}-${typeof options.limit === "number" ? options.limit - 1 + (options.skip ?? 0) : ""}`;
       }
     }
 

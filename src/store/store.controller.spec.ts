@@ -29,6 +29,7 @@ describe("StoreController", () => {
       body?: any;
       channels?: string[];
       acl?: string[];
+      modifiedSince?: Date;
     },
   ) {
     const init: RequestInit = { method, headers: {} };
@@ -41,6 +42,9 @@ describe("StoreController", () => {
     }
     if (options?.acl) {
       init.headers!["Access-Control-List"] = encodeHeaderArray(options.acl);
+    }
+    if (options?.modifiedSince) {
+      init.headers!["If-Modified-Since"] = options.modifiedSince.toISOString();
     }
     return await fetch_(url, init);
   }
@@ -324,5 +328,30 @@ describe("StoreController", () => {
     );
     expect(second.acl).toBeNull();
     expect(second.tombstone).toBe(false);
+  });
+
+  it("query modified since", async () => {
+    const channels = [randomString(), randomString()];
+    const url1 = toUrl(randomString());
+    await request(solidFetch, url1, "PUT", { body: {}, channels });
+    const gotten1 = await fetch(url1);
+    const lastModified1 = new Date(gotten1.headers.get("last-modified") ?? 0);
+
+    const url2 = toUrl(randomString());
+    const value = { [randomString()]: randomString() };
+    await request(solidFetch, url2, "PUT", { body: value, channels });
+    const gotten2 = await fetch(url2);
+    const lastModified2 = new Date(gotten2.headers.get("last-modified") ?? 0);
+
+    expect(lastModified1.getTime()).toBeLessThan(lastModified2.getTime());
+
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      modifiedSince: new Date(lastModified1.getTime() + 1),
+    });
+    expect(response.status).toBe(201);
+    // Output only contains the last value
+    const output = await response.json();
+    expect(output.value).toEqual(value);
   });
 });

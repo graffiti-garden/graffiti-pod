@@ -64,7 +64,7 @@ describe("StoreService", () => {
       encodeHeaderArray(go.acl),
     );
     expect(response.getHeader("Last-Modified")).toBe(
-      go.lastModified.toUTCString(),
+      go.lastModified.toISOString(),
     );
   });
 
@@ -79,7 +79,7 @@ describe("StoreService", () => {
     expect(response.getHeader("Channels")).toBeUndefined();
     expect(response.getHeader("Access-Control-List")).toBeUndefined();
     expect(response.getHeader("Last-Modified")).toBe(
-      go.lastModified.toUTCString(),
+      go.lastModified.toISOString(),
     );
   });
 
@@ -641,6 +641,26 @@ describe("StoreService", () => {
         modifiedSince: new Date(put.lastModified.getTime() + 1),
       });
       await expect(iteratorAfter.next()).resolves.toHaveProperty("done", true);
+    });
+
+    it("query with modifiedSince", async () => {
+      await service.putObject(go);
+      const put = await service.getObject(go.webId, go.name, go.webId);
+      const lastModified = put?.lastModified;
+
+      const go2 = randomGraffitiObject();
+      go2.channels = go.channels;
+      await service.putObject(go2);
+      const put2 = await service.getObject(go2.webId, go2.name, go2.webId);
+      const lastModified2 = put2?.lastModified;
+      expect(lastModified?.getTime()).toBeLessThan(lastModified2?.getTime()!);
+
+      const iterator = service.queryObjects(infoHashes, webId, {
+        modifiedSince: new Date(lastModified!.getTime() + 1),
+      });
+      const result1 = await iterator.next();
+      expect(result1.value?.value).toStrictEqual(go2.value);
+      await expect(iterator.next()).resolves.toHaveProperty("done", true);
     });
 
     it("query for deleted content", async () => {

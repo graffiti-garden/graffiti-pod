@@ -39,9 +39,21 @@ export class StoreController {
     @Body() query: any,
     @WebId() selfWebId: string | null,
     @Channels() obscuredChannels: string[],
-    @Headers("if-modified-since") modifiedSince?: Date,
+    @Headers("if-modified-since") modifiedSinceString?: string,
     @Headers("range") range?: string,
   ) {
+    // Convert the date string to a date object
+    let modifiedSince: Date | undefined;
+    try {
+      modifiedSince = modifiedSinceString
+        ? new Date(modifiedSinceString)
+        : undefined;
+    } catch (e) {
+      throw new BadRequestException(
+        "Invalid date format for if-modified-since header.",
+      );
+    }
+
     const { skip, limit } = rangeToSkipLimit(range);
 
     let infoHashes: string[];

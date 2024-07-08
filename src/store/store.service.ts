@@ -63,7 +63,7 @@ export class StoreService {
           encodeHeaderArray(channelSchemaToChannels(object.channels)),
         );
       }
-      response.header("last-modified", object.lastModified.toUTCString());
+      response.header("last-modified", object.lastModified.toISOString());
       return object.value;
     }
   }

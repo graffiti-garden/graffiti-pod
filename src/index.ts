@@ -261,7 +261,7 @@ export default class GraffitiClient {
 
   async *query(
     channels: string[],
-    podUrl: string,
+    graffitiPod: string,
     options?: {
       query?: JSONSchema4;
       modifiedSince?: Date;
@@ -273,7 +273,7 @@ export default class GraffitiClient {
     const requestInit: RequestInit = { method: "POST", headers: {} };
 
     requestInit.headers!["Channels"] = channels
-      .map((c) => obscureChannel(c, podUrl))
+      .map((c) => obscureChannel(c, graffitiPod))
       .join(",");
 
     if (options) {
@@ -291,7 +291,7 @@ export default class GraffitiClient {
       }
     }
 
-    const response = await (options?.fetch ?? fetch)(podUrl, requestInit);
+    const response = await (options?.fetch ?? fetch)(graffitiPod, requestInit);
     if (!response.ok) {
       const errorMessage = await GraffitiClient.parseReponseError(response);
       throw new Error(errorMessage);
@@ -311,7 +311,7 @@ export default class GraffitiClient {
         const parts = buffer.split("\n");
         buffer = parts.pop() ?? "";
         for (const part of parts) {
-          yield GraffitiClient.parseGraffitiObjectString(part, podUrl);
+          yield GraffitiClient.parseGraffitiObjectString(part, graffitiPod);
         }
       }
 
@@ -319,7 +319,7 @@ export default class GraffitiClient {
     }
     // Clear the buffer
     if (buffer) {
-      yield GraffitiClient.parseGraffitiObjectString(buffer, podUrl);
+      yield GraffitiClient.parseGraffitiObjectString(buffer, graffitiPod);
     }
   }
 }

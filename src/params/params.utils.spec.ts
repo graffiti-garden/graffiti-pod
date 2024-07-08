@@ -4,6 +4,12 @@ import {
   rangeToSkipLimit,
 } from "./params.utils";
 
+it("encode and decode empty array", () => {
+  const encoded = encodeHeaderArray([]);
+  const decoded = decodeHeaderArray(encoded);
+  expect(decoded).toStrictEqual([]);
+});
+
 it("encode and decode header arrays", () => {
   const headers = ["asdf", "🎨dk,fj", "👀,/laskdk,kdjf"];
   const encoded = encodeHeaderArray(headers);

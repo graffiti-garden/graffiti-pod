@@ -262,6 +262,15 @@ describe("StoreController", () => {
     expect(responseGet.status).toBe(404);
   });
 
+  it("query empty", async () => {
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels: [],
+    });
+    expect(response.status).toBe(201);
+    const output = await response.text();
+    expect(output.length).toBe(0);
+  });
+
   it("query single", async () => {
     const value = { [randomString()]: randomString() };
     const channels = [randomString(), randomString()];

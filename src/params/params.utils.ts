@@ -7,7 +7,10 @@ export function encodeHeaderArray(headerArray: string[]): string {
 }
 
 export function decodeHeaderArray(headerString: string): string[] {
-  return headerString.split(",").map(decodeURIComponent);
+  return headerString
+    .split(",")
+    .filter((s) => s)
+    .map(decodeURIComponent);
 }
 
 export function headerArrayDecorator<T>(name: string, default_: T) {

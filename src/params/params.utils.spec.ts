@@ -50,11 +50,23 @@ it("no -", () => {
 it("no start", () => {
   const { skip, limit } = rangeToSkipLimit("posts=-499");
   expect(skip).toBeUndefined();
-  expect(limit).toBeUndefined();
+  expect(limit).toBe(500);
 });
 
 it("multiple range", () => {
   const { skip, limit } = rangeToSkipLimit("posts=asdf-qwer");
   expect(skip).toBeUndefined();
   expect(limit).toBeUndefined();
+});
+
+it("multiple ---", () => {
+  const { skip, limit } = rangeToSkipLimit("posts=-10-30-");
+  expect(skip).toBeUndefined();
+  expect(limit).toBe(11);
+});
+
+it("bad skip of limit", () => {
+  const { skip, limit } = rangeToSkipLimit("posts=asdf-30");
+  expect(skip).toBeUndefined();
+  expect(limit).toBe(31);
 });

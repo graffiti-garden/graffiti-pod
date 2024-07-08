@@ -29,7 +29,8 @@ describe("StoreController", () => {
       body?: any;
       channels?: string[];
       acl?: string[];
-      ifModifiedSince?: Date;
+      ifModifiedSince?: string;
+      range?: string;
     },
   ) {
     const init: RequestInit = { method, headers: {} };
@@ -44,8 +45,10 @@ describe("StoreController", () => {
       init.headers!["Access-Control-List"] = encodeHeaderArray(options.acl);
     }
     if (options?.ifModifiedSince) {
-      init.headers!["If-Modified-Since"] =
-        options.ifModifiedSince.toISOString();
+      init.headers!["If-Modified-Since"] = options.ifModifiedSince;
+    }
+    if (options?.range) {
+      init.headers!["Range"] = options.range;
     }
     return await fetch_(url, init);
   }
@@ -348,11 +351,88 @@ describe("StoreController", () => {
 
     const response = await request(solidFetch, baseUrl, "POST", {
       channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
-      ifModifiedSince: new Date(lastModified1.getTime() + 1),
+      ifModifiedSince: new Date(lastModified1.getTime() + 1).toISOString(),
     });
     expect(response.status).toBe(201);
     // Output only contains the last value
     const output = await response.json();
     expect(output.value).toEqual(value);
+  });
+
+  it("bad ifModifiedSince", async () => {
+    const response = await request(solidFetch, baseUrl, "POST", {
+      ifModifiedSince: "alskdjflk",
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("query with skip", async () => {
+    const channels = [randomString(), randomString()];
+    for (let i = 0; i < 10; i++) {
+      await request(solidFetch, toUrl(randomString()), "PUT", {
+        body: { index: i },
+        channels,
+      });
+    }
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      range: "=4-",
+    });
+    expect(response.status).toBe(201);
+    const output = await response.text();
+    const parts = output.split("\n");
+    expect(parts.length).toBe(6);
+    let index = 4;
+    for (const part of parts) {
+      expect(JSON.parse(part).value.index).toBe(index);
+      index++;
+    }
+  });
+
+  it("query with limit", async () => {
+    const channels = [randomString(), randomString()];
+    for (let i = 0; i < 10; i++) {
+      await request(solidFetch, toUrl(randomString()), "PUT", {
+        body: { index: i },
+        channels,
+      });
+    }
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      range: "=-4",
+    });
+    expect(response.status).toBe(201);
+    const output = await response.text();
+    const parts = output.split("\n");
+    expect(parts.length).toBe(5);
+    let index = 0;
+    for (const part of parts) {
+      expect(JSON.parse(part).value.index).toBe(index);
+      index++;
+    }
+  });
+
+  it("query with skip and limit", async () => {
+    const channels = [randomString(), randomString()];
+    for (let i = 0; i < 10; i++) {
+      await request(solidFetch, toUrl(randomString()), "PUT", {
+        body: { index: i },
+        channels,
+      });
+    }
+    const response = await request(solidFetch, baseUrl, "POST", {
+      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      range: "=2-7",
+    });
+
+    expect(response.status).toBe(201);
+    const output = await response.text();
+    const parts = output.split("\n");
+    expect(parts.length).toBe(6);
+    let index = 2;
+    for (const part of parts) {
+      expect(JSON.parse(part).value.index).toBe(index);
+      index++;
+    }
   });
 });

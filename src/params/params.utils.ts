@@ -37,9 +37,8 @@ export function rangeToSkipLimit(range: string | undefined): {
 
   const [start, end] = value[1].split("-");
   let skip: number | undefined = parseInt(start, 10);
-  let limit: number | undefined = parseInt(end, 10) - skip + 1;
-
   skip = isNaN(skip) ? undefined : skip;
+  let limit: number | undefined = parseInt(end, 10) - (skip ?? 0) + 1;
   limit = isNaN(limit) ? undefined : limit;
 
   return { skip, limit };

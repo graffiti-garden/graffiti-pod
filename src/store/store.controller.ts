@@ -42,13 +42,10 @@ export class StoreController {
     @Headers("if-modified-since") ifModifiedSinceString?: string,
     @Headers("range") range?: string,
   ) {
-    // Convert the date string to a date object
-    let ifModifiedSince: Date | undefined;
-    try {
-      ifModifiedSince = ifModifiedSinceString
-        ? new Date(ifModifiedSinceString)
-        : undefined;
-    } catch (e) {
+    const ifModifiedSince = ifModifiedSinceString
+      ? new Date(ifModifiedSinceString)
+      : undefined;
+    if (ifModifiedSince && isNaN(ifModifiedSince.getTime())) {
       throw new BadRequestException(
         "Invalid date format for if-modified-since header.",
       );

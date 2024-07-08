@@ -302,11 +302,9 @@ describe("StoreController", () => {
     });
     expect(response.status).toBe(201);
     const output = await response.text();
-    console.log(output);
     const parts = output.split("\n");
     expect(parts.length).toBe(2);
     const [first, second] = parts.map((p) => JSON.parse(p));
-    console.log(first);
     expect(first.value).toEqual(value1);
     expect(first.channels.map((c) => c.value).sort()).toEqual(channels1.sort());
     expect(first.acl).toBeNull();

@@ -494,6 +494,44 @@ describe("StoreService", () => {
       expect(count).toBe(5);
     });
 
+    it("invalid limit", async () => {
+      const iterator = service.queryObjects(infoHashes, webId, {
+        limit: -1,
+      });
+      try {
+        await iterator.next();
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        expect(e.status).toBe(422);
+      }
+    });
+
+    it("invalid skip", async () => {
+      const iterator = service.queryObjects(infoHashes, webId, {
+        skip: -1,
+      });
+      try {
+        await iterator.next();
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        expect(e.status).toBe(422);
+      }
+    });
+
+    it("invalid query", async () => {
+      const iterator = service.queryObjects(infoHashes, webId, {
+        query: {
+          asdf: {},
+        },
+      });
+      try {
+        await iterator.next();
+      } catch (e) {
+        expect(e).toBeInstanceOf(HttpException);
+        expect(e.status).toBe(422);
+      }
+    });
+
     for (const prop of ["name", "webId"]) {
       it(`query for ${prop}`, async () => {
         await service.putObject(go);

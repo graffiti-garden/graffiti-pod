@@ -343,8 +343,16 @@ export class StoreService {
       pipeline.push({ $limit: options.limit });
     }
 
-    for await (const doc of this.storeModel.aggregate(pipeline)) {
-      yield doc;
+    try {
+      for await (const doc of this.storeModel.aggregate(pipeline)) {
+        yield doc;
+      }
+    } catch (e) {
+      if (e.name === "MongoServerError") {
+        throw new UnprocessableEntityException(e.message);
+      } else {
+        throw e;
+      }
     }
   }
 }

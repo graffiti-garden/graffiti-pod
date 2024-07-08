@@ -11,7 +11,7 @@ export interface GraffitiLocation {
 
 export interface GraffitiLocalObject {
   value: any;
-  channels?: string[];
+  channels: string[];
   acl?: string[];
 }
 
@@ -21,10 +21,15 @@ export interface GraffitiPatch {
   acl?: JSONPatchOperation[];
 }
 
-export type GraffitiObject = GraffitiLocation &
-  GraffitiLocalObject & {
-    lastModified: Date;
-  };
+export type GraffitiObject = GraffitiLocation & { lastModified: Date } & (
+    | ({ tombstone: false } & GraffitiLocalObject)
+    | {
+        tombstone: true;
+        value: null;
+        channels: string[];
+        acl?: string[];
+      }
+  );
 
 const decoder = new TextDecoder();
 
@@ -87,6 +92,7 @@ export default class GraffitiClient {
 
     if (response.status === 201) {
       return {
+        tombstone: true,
         value: null,
         channels: [],
         lastModified: new Date(0),
@@ -94,6 +100,7 @@ export default class GraffitiClient {
       };
     } else {
       return {
+        tombstone: false,
         value: await response.json(),
         channels: response.headers.has("channels")
           ? response.headers
@@ -237,6 +244,21 @@ export default class GraffitiClient {
     return GraffitiClient.parseGraffitiObjectResponse(response, location);
   }
 
+  private static parseGraffitiObjectString(
+    s: string,
+    graffitiPod: string,
+  ): GraffitiObject {
+    const parsed = JSON.parse(s);
+    return {
+      ...parsed,
+      lastModified: new Date(parsed.lastModified),
+      channels: parsed.channels.map(
+        (c: { value: string; infoHash: string }) => c.value,
+      ),
+      graffitiPod,
+    };
+  }
+
   async *query(
     channels: string[],
     podUrl: string,
@@ -289,9 +311,7 @@ export default class GraffitiClient {
         const parts = buffer.split("\n");
         buffer = parts.pop() ?? "";
         for (const part of parts) {
-          const graffitiObject = JSON.parse(part) as GraffitiObject;
-          graffitiObject.graffitiPod = podUrl;
-          yield graffitiObject;
+          yield GraffitiClient.parseGraffitiObjectString(part, podUrl);
         }
       }
 
@@ -299,9 +319,7 @@ export default class GraffitiClient {
     }
     // Clear the buffer
     if (buffer) {
-      const graffitiObject = JSON.parse(buffer) as GraffitiObject;
-      graffitiObject.graffitiPod = podUrl;
-      yield graffitiObject;
+      yield GraffitiClient.parseGraffitiObjectString(buffer, podUrl);
     }
   }
 }

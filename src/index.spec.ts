@@ -23,6 +23,7 @@ function randomValue() {
   };
 }
 
+// const homePod = "http://localhost:3000";
 const homePod = "https://pod.graffiti.garden";
 function randomLocation() {
   return {
@@ -45,7 +46,9 @@ it("Put, replace, delete", async () => {
   };
   const location = randomLocation();
   const graffiti = new GraffitiClient();
-  const previous = await graffiti.put({ value }, location, { fetch });
+  const previous = await graffiti.put({ value, channels: [] }, location, {
+    fetch,
+  });
   expect(previous.value).toBeNull();
   expect(previous.name).toEqual(location.name);
   expect(previous.webId).toEqual(location.webId);
@@ -62,9 +65,13 @@ it("Put, replace, delete", async () => {
   const newValue = {
     something: "goodbye, world~ c:",
   };
-  const beforeReplaced = await graffiti.put({ value: newValue }, location, {
-    fetch,
-  });
+  const beforeReplaced = await graffiti.put(
+    { value: newValue, channels: [] },
+    location,
+    {
+      fetch,
+    },
+  );
   expect(beforeReplaced).toEqual(gotten);
   const afterReplaced = await graffiti.get(location);
   expect(afterReplaced.value).toEqual(newValue);
@@ -105,7 +112,7 @@ it("patch value", async () => {
   const value = {
     something: "hello, world~ c:",
   };
-  await graffiti.put({ value }, location, { fetch });
+  await graffiti.put({ value, channels: [] }, location, { fetch });
 
   const patch: GraffitiPatch = {
     value: [{ op: "replace", path: "/something", value: "goodbye, world~ c:" }],
@@ -145,7 +152,6 @@ it("query single", async () => {
   const iterator = graffiti.query(channels, homePod, { fetch });
   const result = await iterator.next();
   expect(result.done).toBe(false);
-  console.log(result.value);
   expect(result.value?.value).toEqual(value);
   const result2 = await iterator.next();
   expect(result2.done).toBe(true);
@@ -205,9 +211,30 @@ it("query with actual query", async () => {
   expect(result2.done).toBe(true);
 });
 
+it("query with last modified", async () => {
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  const channels = [randomString(), randomString()];
+  await graffiti.put({ value: randomValue(), channels }, location, { fetch });
+  const lastModified = (await graffiti.get(location)).lastModified;
+
+  const value = randomValue();
+  const location2 = randomLocation();
+  await graffiti.put({ value, channels }, location2, { fetch });
+  const lastModified2 = (await graffiti.get(location2)).lastModified;
+  expect(lastModified.getTime()).toBeLessThan(lastModified2.getTime());
+
+  const iterator = graffiti.query(channels, homePod, {
+    fetch,
+    modifiedSince: new Date(lastModified.getTime() + 1),
+  });
+  const result1 = await iterator.next();
+  expect(result1.value?.value).toEqual(value);
+  const result2 = await iterator.next();
+  expect(result2.done).toBe(true);
+});
+
 // TODO:
 // make channels have a more reasonable return
 // (server side or client...)
 // should you even be able to specify queries for channels?
-// Make lastmodified into date
-// add tombstone to object

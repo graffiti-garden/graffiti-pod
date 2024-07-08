@@ -226,7 +226,7 @@ it("query with last modified", async () => {
 
   const iterator = graffiti.query(channels, homePod, {
     fetch,
-    modifiedSince: new Date(lastModified.getTime() + 1),
+    ifModifiedSince: new Date(lastModified.getTime() + 1),
   });
   const result1 = await iterator.next();
   expect(result1.value?.value).toEqual(value);

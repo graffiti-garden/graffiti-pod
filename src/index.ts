@@ -264,7 +264,7 @@ export default class GraffitiClient {
     graffitiPod: string,
     options?: {
       query?: JSONSchema4;
-      modifiedSince?: Date;
+      ifModifiedSince?: Date;
       limit?: number;
       skip?: number;
       fetch?: typeof fetch;
@@ -281,9 +281,9 @@ export default class GraffitiClient {
         requestInit.headers!["Content-Type"] = "application/json";
         requestInit.body = JSON.stringify(options.query);
       }
-      if (options.modifiedSince) {
+      if (options.ifModifiedSince) {
         requestInit.headers!["If-Modified-Since"] =
-          options.modifiedSince.toISOString();
+          options.ifModifiedSince.toISOString();
       }
       if (options.limit || options?.skip) {
         requestInit.headers!["Range"] =

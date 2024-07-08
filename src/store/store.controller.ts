@@ -39,14 +39,14 @@ export class StoreController {
     @Body() query: any,
     @WebId() selfWebId: string | null,
     @Channels() obscuredChannels: string[],
-    @Headers("if-modified-since") modifiedSinceString?: string,
+    @Headers("if-modified-since") ifModifiedSinceString?: string,
     @Headers("range") range?: string,
   ) {
     // Convert the date string to a date object
-    let modifiedSince: Date | undefined;
+    let ifModifiedSince: Date | undefined;
     try {
-      modifiedSince = modifiedSinceString
-        ? new Date(modifiedSinceString)
+      ifModifiedSince = ifModifiedSinceString
+        ? new Date(ifModifiedSinceString)
         : undefined;
     } catch (e) {
       throw new BadRequestException(
@@ -67,7 +67,7 @@ export class StoreController {
 
     const iterator = this.storeService.queryObjects(infoHashes, selfWebId, {
       query,
-      modifiedSince,
+      ifModifiedSince,
       skip,
       limit,
     });

@@ -212,14 +212,14 @@ export class StoreService {
     };
   }
 
-  private modifiedSinceQuery(modifiedSince?: Date) {
-    return modifiedSince ? { lastModified: { $gte: modifiedSince } } : {};
+  private ifModifiedSinceQuery(ifModifiedSince?: Date) {
+    return ifModifiedSince ? { lastModified: { $gte: ifModifiedSince } } : {};
   }
 
   async *listChannels(
     selfWebId: string | null,
     options?: {
-      modifiedSince?: Date;
+      ifModifiedSince?: Date;
     },
   ): AsyncGenerator<
     {
@@ -233,7 +233,7 @@ export class StoreService {
       {
         $match: {
           webId: selfWebId,
-          ...this.modifiedSinceQuery(options?.modifiedSince),
+          ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
         },
       },
       { $project: { _id: 0, channels: 1, lastModified: 1 } },
@@ -264,7 +264,7 @@ export class StoreService {
     infoHashes: string[],
     selfWebId: string | null,
     options?: {
-      modifiedSince?: Date;
+      ifModifiedSince?: Date;
       query?: JSONSchema4;
       limit?: number;
       skip?: number;
@@ -279,7 +279,7 @@ export class StoreService {
         $match: {
           channels: { $elemMatch: { infoHash: { $in: infoHashes } } },
           ...this.aclQuery(selfWebId),
-          ...this.modifiedSinceQuery(options?.modifiedSince),
+          ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
         },
       },
       {

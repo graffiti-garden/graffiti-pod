@@ -628,22 +628,22 @@ describe("StoreService", () => {
       }
     });
 
-    it("query with modifiedSince", async () => {
+    it("query with ifModifiedSince", async () => {
       await service.putObject(go);
       const put = await service.getObject(go.webId, go.name, go.webId);
       if (!put) throw new Error("Object not found");
       const iteratorBefore = service.queryObjects(infoHashes, webId, {
-        modifiedSince: put.lastModified,
+        ifModifiedSince: put.lastModified,
       });
       const resultBefore = await iteratorBefore.next();
       expect(resultBefore.value["value"]).toStrictEqual(go.value);
       const iteratorAfter = service.queryObjects(infoHashes, webId, {
-        modifiedSince: new Date(put.lastModified.getTime() + 1),
+        ifModifiedSince: new Date(put.lastModified.getTime() + 1),
       });
       await expect(iteratorAfter.next()).resolves.toHaveProperty("done", true);
     });
 
-    it("query with modifiedSince", async () => {
+    it("query with ifModifiedSince", async () => {
       await service.putObject(go);
       const put = await service.getObject(go.webId, go.name, go.webId);
       const lastModified = put?.lastModified;
@@ -656,7 +656,7 @@ describe("StoreService", () => {
       expect(lastModified?.getTime()).toBeLessThan(lastModified2?.getTime()!);
 
       const iterator = service.queryObjects(infoHashes, webId, {
-        modifiedSince: new Date(lastModified!.getTime() + 1),
+        ifModifiedSince: new Date(lastModified!.getTime() + 1),
       });
       const result1 = await iterator.next();
       expect(result1.value?.value).toStrictEqual(go2.value);
@@ -748,7 +748,7 @@ describe("StoreService", () => {
 
     const now = new Date();
     const firstIterator = service.listChannels(webId, {
-      modifiedSince: now,
+      ifModifiedSince: now,
     });
     await expect(firstIterator.next()).resolves.toHaveProperty("done", true);
 
@@ -761,7 +761,7 @@ describe("StoreService", () => {
     await service.putObject(go2);
 
     const secondIterator = service.listChannels(webId, {
-      modifiedSince: now,
+      ifModifiedSince: now,
     });
     const channels = new Map<string, Date>();
     let count = 0;

@@ -29,7 +29,7 @@ describe("StoreController", () => {
       body?: any;
       channels?: string[];
       acl?: string[];
-      modifiedSince?: Date;
+      ifModifiedSince?: Date;
     },
   ) {
     const init: RequestInit = { method, headers: {} };
@@ -43,8 +43,9 @@ describe("StoreController", () => {
     if (options?.acl) {
       init.headers!["Access-Control-List"] = encodeHeaderArray(options.acl);
     }
-    if (options?.modifiedSince) {
-      init.headers!["If-Modified-Since"] = options.modifiedSince.toISOString();
+    if (options?.ifModifiedSince) {
+      init.headers!["If-Modified-Since"] =
+        options.ifModifiedSince.toISOString();
     }
     return await fetch_(url, init);
   }
@@ -347,7 +348,7 @@ describe("StoreController", () => {
 
     const response = await request(solidFetch, baseUrl, "POST", {
       channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
-      modifiedSince: new Date(lastModified1.getTime() + 1),
+      ifModifiedSince: new Date(lastModified1.getTime() + 1),
     });
     expect(response.status).toBe(201);
     // Output only contains the last value

@@ -68,12 +68,21 @@ export default class GraffitiClient {
     }
   }
 
+  private static async parseReponseError(response: Response): Promise<string> {
+    try {
+      const error = await response.json();
+      return error.message;
+    } catch {
+      return response.statusText;
+    }
+  }
+
   private static async parseGraffitiObjectResponse(
     response: Response,
     location: GraffitiLocation,
   ): Promise<GraffitiObject> {
     if (!response.ok) {
-      throw new Error(await response.text());
+      throw new Error(await GraffitiClient.parseReponseError(response));
     }
 
     if (response.status === 201) {
@@ -247,7 +256,7 @@ export default class GraffitiClient {
 
     if (options) {
       if (options.query) {
-        requestInit.headers!["Content-Type"] = "application/schema+json";
+        requestInit.headers!["Content-Type"] = "application/json";
         requestInit.body = JSON.stringify(options.query);
       }
       if (options.modifiedSince) {
@@ -262,7 +271,8 @@ export default class GraffitiClient {
 
     const response = await (options?.fetch ?? fetch)(podUrl, requestInit);
     if (!response.ok) {
-      throw new Error(`Failed to query Graffiti pod: ${response.statusText}`);
+      const errorMessage = await GraffitiClient.parseReponseError(response);
+      throw new Error(errorMessage);
     }
 
     // Parse the body as a readable stream

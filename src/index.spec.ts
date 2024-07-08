@@ -72,14 +72,7 @@ it("Put, replace, delete", async () => {
   // Finally, delete
   const beforeDeleted = await graffiti.delete(location, { fetch });
   expect(beforeDeleted).toEqual(afterReplaced);
-  await expect(graffiti.get(location)).rejects.toThrow(
-    JSON.stringify({
-      message:
-        "Cannot GET object - either it does not exist or you do not have access to it.",
-      error: "Not Found",
-      statusCode: 404,
-    }),
-  );
+  await expect(graffiti.get(location)).rejects.toThrow();
 });
 
 it("put and get with access control", async () => {
@@ -103,14 +96,7 @@ it("put and get with access control", async () => {
   expect(gotten.value).toEqual(value);
 
   // But not with plain fetch
-  await expect(graffiti.get(location)).rejects.toThrow(
-    JSON.stringify({
-      message:
-        "Cannot GET object - either it does not exist or you do not have access to it.",
-      error: "Not Found",
-      statusCode: 404,
-    }),
-  );
+  await expect(graffiti.get(location)).rejects.toThrow();
 });
 
 it("patch value", async () => {
@@ -184,6 +170,44 @@ it("query multiple", async () => {
   expect(result3.done).toBe(true);
 });
 
+it("invalid query", async () => {
+  const graffiti = new GraffitiClient();
+  const iterator = graffiti.query([], homePod, {
+    fetch,
+    query: {
+      asdf: {},
+    },
+  });
+  await expect(iterator.next()).rejects.toThrow();
+});
+
+it("query with actual query", async () => {
+  const graffiti = new GraffitiClient();
+  const channels = [randomString(), randomString()];
+  const values = [randomValue(), randomValue()];
+  for (const value of values) {
+    await graffiti.put({ value, channels }, randomLocation(), { fetch });
+  }
+  // Query for the first value
+  const iterator = graffiti.query(channels, homePod, {
+    fetch,
+    query: {
+      properties: {
+        value: {
+          required: Object.keys(values[0]),
+        },
+      },
+    },
+  });
+  const result1 = await iterator.next();
+  expect(result1.value?.value).toEqual(values[0]);
+  const result2 = await iterator.next();
+  expect(result2.done).toBe(true);
+});
+
 // TODO:
-// make channels have a more reasonable return.
-// do all
+// make channels have a more reasonable return
+// (server side or client...)
+// should you even be able to specify queries for channels?
+// Make lastmodified into date
+// add tombstone to object

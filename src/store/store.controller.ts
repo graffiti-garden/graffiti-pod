@@ -17,11 +17,10 @@ import { DecodeParam } from "../params/decodeparam.decorator";
 import { WebId } from "../params/webid.decorator";
 import { Channels } from "../params/channels.decorator";
 import { AccessControlList } from "../params/acl.decorator";
-import { StoreSchema, channelsToChannelSchema } from "./store.schema";
+import { StoreSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 import { Operation } from "fast-json-patch";
-import { InfoHash } from "../info-hash/info-hash";
 import { rangeToSkipLimit } from "../params/params.utils";
 
 const CONTENT_TYPE = [
@@ -38,7 +37,7 @@ export class StoreController {
   async queryObjects(
     @Body() query: any,
     @WebId() selfWebId: string | null,
-    @Channels() obscuredChannels: string[],
+    @Channels() channels: string[],
     @Headers("if-modified-since") ifModifiedSinceString?: string,
     @Headers("range") range?: string,
   ) {
@@ -53,16 +52,7 @@ export class StoreController {
 
     const { skip, limit } = rangeToSkipLimit(range);
 
-    let infoHashes: string[];
-    try {
-      infoHashes = obscuredChannels.map<string>((obscuredChannel) =>
-        InfoHash.verifyObscuredChannel(obscuredChannel),
-      );
-    } catch (e) {
-      throw new BadRequestException(e.message);
-    }
-
-    const iterator = this.storeService.queryObjects(infoHashes, selfWebId, {
+    const iterator = this.storeService.queryObjects(channels, selfWebId, {
       query,
       ifModifiedSince,
       skip,
@@ -105,7 +95,7 @@ export class StoreController {
     object.webId = webId;
     object.name = name;
     object.value = value;
-    object.channels = channelsToChannelSchema(channels);
+    object.channels = channels;
     object.acl = acl;
 
     const putted = await this.storeService.putObject(object);

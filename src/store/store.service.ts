@@ -9,11 +9,7 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import {
-  StoreSchema,
-  channelSchemaToChannels,
-  channelsToChannelSchema,
-} from "./store.schema";
+import { StoreSchema } from "./store.schema";
 import { JsonPatchError, applyPatch } from "fast-json-patch";
 import type { Operation } from "fast-json-patch";
 import { FastifyReply } from "fastify";
@@ -58,10 +54,7 @@ export class StoreService {
         if (object.acl) {
           response.header("access-control-list", encodeHeaderArray(object.acl));
         }
-        response.header(
-          "channels",
-          encodeHeaderArray(channelSchemaToChannels(object.channels)),
-        );
+        response.header("channels", encodeHeaderArray(object.channels));
       }
       response.header("last-modified", object.lastModified.toISOString());
       return object.value;
@@ -145,11 +138,8 @@ export class StoreService {
         );
       }
       if (!patch.length) continue;
-      const input =
-        prop === "channels" ? channelSchemaToChannels(doc[prop]) : doc[prop];
-      let patched: any;
       try {
-        patched = applyPatch(input, patch, true).newDocument;
+        doc[prop] = applyPatch(doc[prop], patch, true).newDocument;
       } catch (e) {
         if (e.name === "TEST_OPERATION_FAILED") {
           throw new PreconditionFailedException(e.message);
@@ -158,14 +148,6 @@ export class StoreService {
         } else {
           throw e;
         }
-      }
-      try {
-        doc[prop] =
-          prop === "channels" ? channelsToChannelSchema(patched) : patched;
-      } catch (e) {
-        throw new UnprocessableEntityException(
-          `Patch of ${prop} resulted in invalid data`,
-        );
       }
       doc.markModified(prop);
     }
@@ -244,7 +226,7 @@ export class StoreService {
       },
       {
         $group: {
-          _id: "$channels.value",
+          _id: "$channels",
           lastModified: { $max: "$lastModified" },
         },
       },
@@ -261,7 +243,7 @@ export class StoreService {
   }
 
   async *queryObjects(
-    infoHashes: string[],
+    channels: string[],
     selfWebId: string | null,
     options?: {
       ifModifiedSince?: Date;
@@ -272,12 +254,12 @@ export class StoreService {
   ): AsyncGenerator<StoreSchema, void, void> {
     const pipeline: PipelineStage[] = [
       // Reduce to only documents that contain
-      // at least one of the info hashes that
+      // at least one of the channels that
       // the user is authorized to access before
       // the given time.
       {
         $match: {
-          channels: { $elemMatch: { infoHash: { $in: infoHashes } } },
+          channels: { $elemMatch: { $in: channels } },
           ...this.aclQuery(selfWebId),
           ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
         },
@@ -302,8 +284,7 @@ export class StoreService {
       // Mask out the value if the object has been deleted
       // (ie tombstone is true)
       // Mask out the _id and if user is not the owner
-      // and filter infoHashes and channels to only
-      // the supplied infoHashes
+      // and filter channels to only supplied channels
       {
         $project: {
           _id: 0,
@@ -324,7 +305,7 @@ export class StoreService {
               input: "$channels",
               as: "channel",
               cond: {
-                $in: ["$$channel.infoHash", infoHashes],
+                $in: ["$$channel", channels],
               },
             },
           }),

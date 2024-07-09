@@ -8,7 +8,6 @@ import { StoreModule } from "./store.module";
 import { RootMongooseModule } from "../app.module";
 import { encodeHeaderArray } from "../params/params.utils";
 import { Operation } from "fast-json-patch";
-import { InfoHash } from "../info-hash/info-hash";
 
 describe("StoreController", () => {
   let app: NestFastifyApplication;
@@ -284,17 +283,14 @@ describe("StoreController", () => {
     const channels = [randomString(), randomString()];
     const url = toUrl(randomString());
     await request(solidFetch, url, "PUT", { body: value, channels });
-    const obscuredChannels = channels.map<string>((c) =>
-      InfoHash.obscureChannel(c),
-    );
     const response = await request(solidFetch, baseUrl, "POST", {
-      channels: obscuredChannels,
+      channels,
       body: {},
     });
     expect(response.status).toBe(201);
     const output = await response.json();
     expect(output.value).toEqual(value);
-    expect(output.channels.map((c) => c.value).sort()).toEqual(channels.sort());
+    expect(output.channels.sort()).toEqual(channels.sort());
     expect(output.acl).toBeNull();
     expect(output.tombstone).toBe(false);
   });
@@ -313,7 +309,7 @@ describe("StoreController", () => {
       channels: channels2,
     });
 
-    const channels = [InfoHash.obscureChannel(channels1[0])];
+    const channels = [channels1[0]];
     const response = await request(solidFetch, baseUrl, "POST", {
       channels,
     });
@@ -323,13 +319,11 @@ describe("StoreController", () => {
     expect(parts.length).toBe(2);
     const [first, second] = parts.map((p) => JSON.parse(p));
     expect(first.value).toEqual(value1);
-    expect(first.channels.map((c) => c.value).sort()).toEqual(channels1.sort());
+    expect(first.channels.sort()).toEqual(channels1.sort());
     expect(first.acl).toBeNull();
     expect(first.tombstone).toBe(false);
     expect(second.value).toEqual(value2);
-    expect(second.channels.map((c) => c.value).sort()).toEqual(
-      channels2.sort(),
-    );
+    expect(second.channels.sort()).toEqual(channels2.sort());
     expect(second.acl).toBeNull();
     expect(second.tombstone).toBe(false);
   });
@@ -350,7 +344,7 @@ describe("StoreController", () => {
     expect(lastModified1.getTime()).toBeLessThan(lastModified2.getTime());
 
     const response = await request(solidFetch, baseUrl, "POST", {
-      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      channels,
       ifModifiedSince: new Date(lastModified1.getTime() + 1).toISOString(),
     });
     expect(response.status).toBe(201);
@@ -375,7 +369,7 @@ describe("StoreController", () => {
       });
     }
     const response = await request(solidFetch, baseUrl, "POST", {
-      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      channels,
       range: "=4-",
     });
     expect(response.status).toBe(201);
@@ -398,7 +392,7 @@ describe("StoreController", () => {
       });
     }
     const response = await request(solidFetch, baseUrl, "POST", {
-      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      channels,
       range: "=-4",
     });
     expect(response.status).toBe(201);
@@ -421,7 +415,7 @@ describe("StoreController", () => {
       });
     }
     const response = await request(solidFetch, baseUrl, "POST", {
-      channels: channels.map(InfoHash.obscureChannel.bind(InfoHash)),
+      channels,
       range: "=2-7",
     });
 

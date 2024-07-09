@@ -1,41 +1,8 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
 import { MongooseModule } from "@nestjs/mongoose";
-import { InfoHash } from "../info-hash/info-hash";
 
 export type StoreDocument = HydratedDocument<StoreSchema>;
-
-@Schema({
-  validateBeforeSave: true,
-  _id: false,
-})
-class ChannelSchema {
-  @Prop({ required: true })
-  value: string;
-
-  @Prop({
-    required: true,
-    validate: {
-      validator: (s: string) => /^[A-Za-z0-9_-]{43}$/.test(s),
-      message:
-        "Info hashes must be a unique array of hex strings, one for each channel.",
-    },
-  })
-  infoHash: string;
-}
-
-export function channelsToChannelSchema(channels: string[]): ChannelSchema[] {
-  return channels.map<ChannelSchema>((value) => ({
-    value,
-    infoHash: InfoHash.toInfoHash(value),
-  }));
-}
-
-export function channelSchemaToChannels(
-  channelSchemas: ChannelSchema[],
-): string[] {
-  return channelSchemas.map<string>((channelSchema) => channelSchema.value);
-}
 
 @Schema({
   minimize: false,
@@ -66,17 +33,18 @@ export class StoreSchema {
   value: Object;
 
   @Prop({
-    type: [ChannelSchema],
+    type: [String],
     required: true,
     default: undefined,
     validate: {
       validator: (v: any) =>
         Array.isArray(v) &&
-        new Set(channelSchemaToChannels(v)).size === v.length,
-      message: "Channels must unique.",
+        v.every((e) => typeof e === "string") &&
+        new Set(v).size === v.length,
+      message: "Channels must be a unique array of strings.",
     },
   })
-  channels: ChannelSchema[];
+  channels: string[];
 
   @Prop({
     type: [String],

@@ -2,8 +2,6 @@ import { it, expect } from "vitest";
 import * as secrets from "../.secrets.json";
 import { Session } from "@inrupt/solid-client-authn-node";
 import GraffitiClient, { GraffitiPatch } from ".";
-import { randomBytes } from "@noble/hashes/utils";
-import { base64Encode } from "./info-hash";
 
 const session = new Session({ keepAlive: true });
 await session.login(secrets);
@@ -13,8 +11,12 @@ if (!session.info.isLoggedIn || !session.info.webId) {
 const fetch = session.fetch;
 const webId = session.info.webId;
 
-function randomString() {
-  return base64Encode(randomBytes(16));
+function randomString(): string {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function randomValue() {
@@ -344,8 +346,3 @@ it("query with skip and limit", async () => {
   const result = await iterator.next();
   expect(result.done).toBe(true);
 });
-
-// TODO:
-// make channels have a more reasonable return
-// (server side or client...)
-// should you even be able to specify queries for channels?

@@ -1,7 +1,6 @@
-import { JSONSchema4 } from "json-schema";
 import WebIdManager from "./webid-manager";
+import type { JSONSchema4 } from "json-schema";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
-import { obscureChannel } from "./info-hash";
 
 export interface GraffitiLocation {
   name: string;
@@ -252,9 +251,6 @@ export default class GraffitiClient {
     return {
       ...parsed,
       lastModified: new Date(parsed.lastModified),
-      channels: parsed.channels.map(
-        (c: { value: string; infoHash: string }) => c.value,
-      ),
       graffitiPod,
     };
   }
@@ -272,9 +268,7 @@ export default class GraffitiClient {
   ): AsyncGenerator<GraffitiObject, void, void> {
     const requestInit: RequestInit = { method: "POST", headers: {} };
 
-    requestInit.headers!["Channels"] = channels
-      .map((c) => obscureChannel(c, graffitiPod))
-      .join(",");
+    requestInit.headers!["Channels"] = channels.join(",");
 
     if (options) {
       if (options.query) {

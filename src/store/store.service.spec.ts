@@ -301,33 +301,6 @@ describe("StoreService", () => {
     expect(patched).toBeNull();
   });
 
-  it.skip("concurrent patches", async () => {
-    const go = randomGraffitiObject();
-    go.value["something"] = 1;
-    await service.putObject(go);
-
-    // Patch at the same time
-    const jobs: Promise<StoreSchema | null>[] = [];
-    for (let i = 0; i < 1000; i++) {
-      jobs.push(
-        service.patchObject(go.webId, go.name, {
-          value: [{ op: "replace", path: "/something", value: 0 }],
-        }),
-      );
-    }
-
-    const results = await Promise.allSettled(jobs);
-    let numErrors = 0;
-    for (const result of results) {
-      if (result.status === "rejected") {
-        numErrors++;
-        expect(result.reason).toBeInstanceOf(HttpException);
-        expect(result.reason.status).toBe(409);
-      }
-    }
-    expect(numErrors).toBeGreaterThan(0);
-  });
-
   it("patch acl and channels", async () => {
     const go = randomGraffitiObject();
     go.channels = [randomString(), randomString()];
@@ -812,11 +785,167 @@ describe("StoreService", () => {
     }
   });
 
-  it("list channels with orphaned objects", async () => {});
+  it("list channels with orphaned objects", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    const channelsIterator = service.listChannels(go.webId);
+    const out = await channelsIterator.next();
+    expect(out.done).toBe(true);
+  });
 
-  it("list channels after deletion", async () => {});
+  it("list channels after deletion", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    await service.putObject(go);
+    await service.deleteObject(go.webId, go.name);
+    const iterator = service.listChannels(go.webId);
+    let lastModified: Date;
+    for (let i = 0; i < 2; i++) {
+      const result = await iterator.next();
+      expect(result.value?.count).toBe(0);
+      expect(go.channels.includes(result.value?.channel!)).toBe(true);
+      lastModified = result.value?.lastModified!;
+    }
+    expect(await iterator.next()).toHaveProperty("done", true);
+    const iterator2 = service.listChannels(go.webId, {
+      ifModifiedSince: new Date(lastModified!.getTime() + 1),
+    });
+    expect(await iterator2.next()).toHaveProperty("done", true);
+  });
 
-  it("list channels after patch", async () => {});
+  it("list channels after patch", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString(), randomString()];
+    await service.putObject(go);
+    await service.patchObject(go.webId, go.name, {
+      value: [{ op: "add", path: "/test", value: "new" }],
+    });
+    const iterator = service.listChannels(go.webId);
+    let lastModified: Date;
+    for (let i = 0; i < 2; i++) {
+      const result = await iterator.next();
+      expect(result.value?.count).toBe(1);
+      expect(go.channels.includes(result.value?.channel!)).toBe(true);
+      lastModified = result.value?.lastModified!;
+    }
+    expect(await iterator.next()).toHaveProperty("done", true);
+    const iterator2 = service.listChannels(go.webId, {
+      ifModifiedSince: new Date(lastModified!.getTime() + 1),
+    });
+    expect(await iterator2.next()).toHaveProperty("done", true);
+  });
 
-  it("list orphans", async () => {});
+  it("list channels after patched channels", async () => {
+    const go = randomGraffitiObject();
+    const channelsBefore = [randomString(), randomString()];
+    go.channels = channelsBefore;
+    await service.putObject(go);
+    const channelsAfter = [channelsBefore[1], randomString()];
+    await service.patchObject(go.webId, go.name, {
+      channels: [{ op: "replace", path: "", value: channelsAfter }],
+    });
+    const iterator = service.listChannels(go.webId);
+    let channels = new Set<string>();
+    for await (const result of iterator) {
+      channels.add(result.channel);
+      if (result.channel === channelsBefore[0]) {
+        expect(result.count).toBe(0);
+      } else {
+        expect(result.count).toBe(1);
+      }
+    }
+    expect(channels.size).toBe(3);
+  });
+
+  it("list orphan", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    const iterator = service.listOrphans(go.webId);
+    const result = await iterator.next();
+    expect(result.value?.name).toBe(go.name);
+    expect(result.value?.tombstone).toBe(false);
+    expect(await iterator.next()).toHaveProperty("done", true);
+  });
+
+  it("list non-orphan", async () => {
+    const go = randomGraffitiObject();
+    go.channels = [randomString()];
+    await service.putObject(go);
+    const iterator = service.listOrphans(go.webId);
+    const result = await iterator.next();
+    expect(result.done).toBe(true);
+  });
+
+  it("list patched ex-orphan", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    await service.patchObject(go.webId, go.name, {
+      channels: [{ op: "add", path: "", value: [randomString()] }],
+    });
+    const iterator = service.listOrphans(go.webId);
+    const result = await iterator.next();
+    expect(result.value?.name).toBe(go.name);
+    expect(result.value?.tombstone).toBe(true);
+    expect(await iterator.next()).toHaveProperty("done", true);
+  });
+
+  it("list patched orphan", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    await service.patchObject(go.webId, go.name, {
+      value: [{ op: "add", path: "/test", value: "new" }],
+    });
+    const iterator = service.listOrphans(go.webId);
+    const result = await iterator.next();
+    expect(result.value?.name).toBe(go.name);
+    expect(result.value?.tombstone).toBe(false);
+    expect(await iterator.next()).toHaveProperty("done", true);
+  });
+
+  it("list deleted orphan", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    await service.deleteObject(go.webId, go.name);
+    const iterator = service.listOrphans(go.webId);
+    const result = await iterator.next();
+    expect(result.value?.name).toBe(go.name);
+    expect(result.value?.tombstone).toBe(true);
+    expect(await iterator.next()).toHaveProperty("done", true);
+  });
+
+  it("list many orphans", async () => {
+    const names: string[] = [];
+    const webId = randomString();
+    for (let i = 0; i < 10; i++) {
+      const go = randomGraffitiObject();
+      go.webId = webId;
+      names.push(go.name);
+      await service.putObject(go);
+    }
+    const iterator = service.listOrphans(webId);
+    const receivedNames = new Set<string>();
+    for (let i = 0; i < 10; i++) {
+      const result = await iterator.next();
+      expect(names).toContain(result.value!.name);
+      receivedNames.add(result.value!.name);
+    }
+    expect(receivedNames.size).toBe(10);
+    expect(await iterator.next()).toHaveProperty("done", true);
+  });
+
+  it("list orphans modified since", async () => {
+    const go = randomGraffitiObject();
+    await service.putObject(go);
+    const now = new Date();
+    const go2 = randomGraffitiObject();
+    go2.webId = go.webId;
+    await service.putObject(go2);
+    const iterator = service.listOrphans(go.webId, {
+      ifModifiedSince: now,
+    });
+    const result = await iterator.next();
+    expect(result.value?.name).toBe(go2.name);
+    expect(result.value?.tombstone).toBe(false);
+    expect(await iterator.next()).toHaveProperty("done", true);
+  });
 });

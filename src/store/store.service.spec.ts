@@ -663,6 +663,19 @@ describe("StoreService", () => {
       expect(await iterator.next()).toHaveProperty("done", true);
     });
 
+    it("query for deleted content by timestampe", async () => {
+      await service.putObject(go);
+      const now = new Date();
+      await service.deleteObject(go.webId, go.name);
+      const iterator = service.queryObjects(go.channels, null, {
+        ifModifiedSince: now,
+      });
+      const result = await iterator.next();
+      expect(result.value?.tombstone).toBe(true);
+      expect(result.value?.value).toBe(undefined);
+      expect(await iterator.next()).toHaveProperty("done", true);
+    });
+
     it("query for changed ACL", async () => {
       await service.putObject(go);
       await service.patchObject(go.webId, go.name, {
@@ -686,6 +699,20 @@ describe("StoreService", () => {
       expect(result.value?.value).toBe(undefined);
       expect(await iterator.next()).toHaveProperty("done", true);
     });
+
+    it("query for patched content", async () => {
+      await service.putObject(go);
+      await service.patchObject(go.webId, go.name, {
+        value: [{ op: "add", path: "/test", value: "new" }],
+      });
+      const iterator = service.queryObjects(go.channels, null);
+      const result = await iterator.next();
+      expect(result.value?.value).toEqual({
+        test: "new",
+        ...go.value,
+      });
+      expect(await iterator.next()).toHaveProperty("done", true);
+    });
   });
 
   it("list no channels", async () => {
@@ -706,10 +733,17 @@ describe("StoreService", () => {
     await service.putObject(go2);
 
     const channelsIterator = service.listChannels(webId);
-    const channels = new Map<string, Date>();
+    const channels = new Map<
+      string,
+      {
+        channel: string;
+        lastModified: Date;
+        count: number;
+      }
+    >();
     let count = 0;
     for await (const result of channelsIterator) {
-      channels.set(result.channel, result.lastModified);
+      channels.set(result.channel, result);
       count++;
     }
     expect(channels.size).toBe(3);
@@ -718,12 +752,15 @@ describe("StoreService", () => {
     expect(channels.has(go1.channels[1])).toBe(true);
     expect(channels.has(go2.channels[0])).toBe(true);
     expect(channels.has(go2.channels[1])).toBe(true);
-    expect(channels.get(go2.channels[0])).toEqual(
-      channels.get(go2.channels[1]),
+    expect(channels.get(go2.channels[0])?.lastModified).toEqual(
+      channels.get(go2.channels[1])?.lastModified,
     );
-    expect(channels.get(go1.channels[0])).not.toEqual(
-      channels.get(go1.channels[1]),
+    expect(channels.get(go1.channels[0])?.lastModified).not.toEqual(
+      channels.get(go1.channels[1])?.lastModified,
     );
+    expect(channels.get(go1.channels[0])?.count).toBe(1);
+    expect(channels.get(go1.channels[1])?.count).toBe(2);
+    expect(channels.get(go2.channels[0])?.count).toBe(1);
   });
 
   it("list channels modified since", async () => {
@@ -747,17 +784,39 @@ describe("StoreService", () => {
     const secondIterator = service.listChannels(webId, {
       ifModifiedSince: now,
     });
-    const channels = new Map<string, Date>();
+    const channels = new Map<
+      string,
+      {
+        channel: string;
+        lastModified: Date;
+        count: number;
+      }
+    >();
     let count = 0;
     for await (const result of secondIterator) {
-      channels.set(result.channel, result.lastModified);
+      channels.set(result.channel, result);
       count++;
     }
     expect(channels.size).toBe(4);
     expect(channels.size).toEqual(count);
     for (const channel of go2.channels) {
       expect(channels.has(channel)).toBe(true);
-      expect(channels.get(channel)).toEqual(channels.get(go2.channels[0]));
+      expect(channels.get(channel)?.lastModified).toEqual(
+        channels.get(go2.channels[0])?.lastModified,
+      );
+      // If it is a shared channel count is 2
+      // otherwise count is 1
+      expect(channels.get(channel)?.count).toBe(
+        go.channels.includes(channel) ? 2 : 1,
+      );
     }
   });
+
+  it("list channels with orphaned objects", async () => {});
+
+  it("list channels after deletion", async () => {});
+
+  it("list channels after patch", async () => {});
+
+  it("list orphans", async () => {});
 });

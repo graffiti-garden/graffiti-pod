@@ -72,6 +72,7 @@ export class StoreService {
       { $set: { tombstone: true } },
       {
         sort: { lastModified: 1 },
+        timestamps: !modifiedBefore,
       },
     );
   }
@@ -187,7 +188,7 @@ export class StoreService {
   private ifNotOwner(prop: string, selfWebId: string | null, otherwise: any) {
     return {
       $cond: {
-        if: { $eq: ["$webId", selfWebId] },
+        if: { $eq: ["$_id.webId", selfWebId] },
         then: `$${prop}`,
         else: otherwise,
       },
@@ -198,15 +199,16 @@ export class StoreService {
     return ifModifiedSince ? { lastModified: { $gte: ifModifiedSince } } : {};
   }
 
-  async *listChannels(
+  async *listOrphans(
     selfWebId: string | null,
     options?: {
       ifModifiedSince?: Date;
     },
   ): AsyncGenerator<
     {
+      name: string;
       lastModified: Date;
-      channel: string;
+      tombstone: boolean;
     },
     void,
     void
@@ -215,25 +217,114 @@ export class StoreService {
       {
         $match: {
           webId: selfWebId,
+          channels: { $size: 0 },
           ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
-        },
-      },
-      { $project: { _id: 0, channels: 1, lastModified: 1 } },
-      {
-        $unwind: {
-          path: "$channels",
-        },
-      },
-      {
-        $group: {
-          _id: "$channels",
-          lastModified: { $max: "$lastModified" },
         },
       },
       {
         $project: {
           _id: 0,
+          name: 1,
+          lastModified: 1,
+          tombstone: 1,
+        },
+      },
+      {
+        $sort: { lastModified: 1 },
+      },
+      {
+        $group: {
+          _id: "$name",
+          lastModified: { $last: "$lastModified" },
+          tombstone: { $last: "$tombstone" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          lastModified: 1,
+          tombstone: 1,
+        },
+      },
+    ])) {
+      yield output;
+    }
+  }
+
+  async *listChannels(
+    selfWebId: string | null,
+    options?: {
+      ifModifiedSince?: Date;
+    },
+  ): AsyncGenerator<
+    {
+      channel: string;
+      count: number;
+      lastModified: Date;
+    },
+    void,
+    void
+  > {
+    for await (const output of this.storeModel.aggregate([
+      {
+        $match: {
+          webId: selfWebId,
+          channels: { $exists: true, $ne: [] },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          channels: 1,
+          lastModified: 1,
+          name: 1,
+          tombstone: 1,
+        },
+      },
+      // Get the most recent version of
+      // each document, per channel
+      {
+        $unwind: "$channels",
+      },
+      {
+        $sort: { lastModified: 1 },
+      },
+      {
+        $group: {
+          _id: {
+            name: "$name",
+            channel: "$channels",
+          },
+          lastModified: { $last: "$lastModified" },
+          tombstone: { $last: "$tombstone" },
+        },
+      },
+      // Count up the remaining objects
+      {
+        $group: {
+          _id: "$_id.channel",
+          count: {
+            $sum: {
+              $cond: {
+                if: "$tombstone",
+                then: 0,
+                else: 1,
+              },
+            },
+          },
+          lastModified: { $max: "$lastModified" },
+        },
+      },
+      // Filter out anything old
+      {
+        $match: this.ifModifiedSinceQuery(options?.ifModifiedSince),
+      },
+      {
+        $project: {
+          _id: 0,
           channel: "$_id",
+          count: 1,
           lastModified: 1,
         },
       },
@@ -273,8 +364,6 @@ export class StoreService {
         $group: {
           _id: { webId: "$webId", name: "$name" },
           value: { $last: "$value" },
-          webId: { $last: "$webId" },
-          name: { $last: "$name" },
           lastModified: { $last: "$lastModified" },
           acl: { $last: "$acl" },
           channels: { $last: "$channels" },
@@ -296,8 +385,8 @@ export class StoreService {
               else: "$value",
             },
           },
-          webId: 1,
-          name: 1,
+          webId: "$_id.webId",
+          name: "$_id.name",
           lastModified: 1,
           acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
           channels: this.ifNotOwner("channels", selfWebId, {

@@ -21,7 +21,7 @@ import { StoreSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 import { Operation } from "fast-json-patch";
-import { rangeToSkipLimit } from "../params/params.utils";
+import { rangeToSkipLimit, parseDateString } from "../params/params.utils";
 
 const CONTENT_TYPE = [
   "Content-Type",
@@ -32,34 +32,9 @@ const CONTENT_TYPE = [
 export class StoreController {
   constructor(private storeService: StoreService) {}
 
-  @Header(...CONTENT_TYPE)
-  @Post()
-  async queryObjects(
-    @Body() query: any,
-    @WebId() selfWebId: string | null,
-    @Channels() channels: string[],
-    @Headers("if-modified-since") ifModifiedSinceString?: string,
-    @Headers("range") range?: string,
-  ) {
-    const ifModifiedSince = ifModifiedSinceString
-      ? new Date(ifModifiedSinceString)
-      : undefined;
-    if (ifModifiedSince && isNaN(ifModifiedSince.getTime())) {
-      throw new BadRequestException(
-        "Invalid date format for if-modified-since header.",
-      );
-    }
-
-    const { skip, limit } = rangeToSkipLimit(range);
-
-    const iterator = this.storeService.queryObjects(channels, selfWebId, {
-      query,
-      ifModifiedSince,
-      skip,
-      limit,
-    });
-
-    // Transform it to bytes
+  iteratorToStreamableFile(
+    iterator: AsyncGenerator<any, void, void>,
+  ): StreamableFile {
     const byteIterator = (async function* () {
       let first = true;
       for await (const object of iterator) {
@@ -71,10 +46,55 @@ export class StoreController {
         yield Buffer.from(JSON.stringify(object));
       }
     })();
-
-    // Return the iterator as a stream
     const stream = Readable.from(byteIterator);
-    return new StreamableFile(stream);
+    return new StreamableFile(stream, {
+      type: "text/plain",
+    });
+  }
+
+  @Post()
+  async queryObjects(
+    @Body() query: any,
+    @WebId() selfWebId: string | null,
+    @Channels() channels: string[],
+    @Headers("if-modified-since") ifModifiedSinceString?: string,
+    @Headers("range") range?: string,
+  ) {
+    const { skip, limit } = rangeToSkipLimit(range);
+    const ifModifiedSince = parseDateString(ifModifiedSinceString);
+    const iterator = this.storeService.queryObjects(channels, selfWebId, {
+      query,
+      ifModifiedSince,
+      skip,
+      limit,
+    });
+    return this.iteratorToStreamableFile(iterator);
+  }
+
+  @Post("list-channels")
+  async listChannels(
+    @WebId() selfWebId: string | null,
+    @Headers("if-modified-since") ifModifiedSinceString?: string,
+  ) {
+    this.storeService.validateWebId(selfWebId, selfWebId);
+    const ifModifiedSince = parseDateString(ifModifiedSinceString);
+    const iterator = this.storeService.listChannels(selfWebId, {
+      ifModifiedSince,
+    });
+    return this.iteratorToStreamableFile(iterator);
+  }
+
+  @Post("list-orphans")
+  async listOrphans(
+    @WebId() selfWebId: string | null,
+    @Headers("if-modified-since") ifModifiedSinceString?: string,
+  ) {
+    this.storeService.validateWebId(selfWebId, selfWebId);
+    const ifModifiedSince = parseDateString(ifModifiedSinceString);
+    const iterator = this.storeService.listOrphans(selfWebId, {
+      ifModifiedSince,
+    });
+    return this.iteratorToStreamableFile(iterator);
   }
 
   @Header(...CONTENT_TYPE)

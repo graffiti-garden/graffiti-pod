@@ -1,4 +1,4 @@
-import { createParamDecorator } from "@nestjs/common";
+import { BadRequestException, createParamDecorator } from "@nestjs/common";
 import type { ExecutionContext } from "@nestjs/common";
 import type { IncomingMessage } from "http";
 
@@ -42,4 +42,12 @@ export function rangeToSkipLimit(range: string | undefined): {
   limit = isNaN(limit) ? undefined : limit;
 
   return { skip, limit };
+}
+
+export function parseDateString(dateString?: string): Date | undefined {
+  const date = dateString ? new Date(dateString) : undefined;
+  if (date && isNaN(date.getTime())) {
+    throw new BadRequestException("Invalid date format.");
+  }
+  return date;
 }

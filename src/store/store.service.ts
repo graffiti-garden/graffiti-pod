@@ -23,7 +23,7 @@ export class StoreService {
     private storeModel: Model<StoreSchema>,
   ) {}
 
-  validateWebId(targetWebId: string, selfWebId: string | null) {
+  validateWebId(targetWebId: string | null, selfWebId: string | null) {
     if (!selfWebId) {
       throw new UnauthorizedException(
         "You must be logged in to access this resource.",
@@ -69,7 +69,14 @@ export class StoreService {
         tombstone: false,
         ...(modifiedBefore ? { lastModified: { $lt: modifiedBefore } } : {}),
       },
-      { $set: { tombstone: true } },
+      {
+        $set: {
+          tombstone: true,
+          // Set the modified date to the
+          // same date as the requesting date
+          ...(modifiedBefore ? { lastModified: modifiedBefore } : {}),
+        },
+      },
       {
         sort: { lastModified: 1 },
         timestamps: !modifiedBefore,
@@ -188,7 +195,7 @@ export class StoreService {
   private ifNotOwner(prop: string, selfWebId: string | null, otherwise: any) {
     return {
       $cond: {
-        if: { $eq: ["$_id.webId", selfWebId] },
+        if: { $eq: ["$webId", selfWebId] },
         then: `$${prop}`,
         else: otherwise,
       },
@@ -214,6 +221,9 @@ export class StoreService {
     void
   > {
     for await (const output of this.storeModel.aggregate([
+      // Find all objects that have no channels,
+      // are owned by the user, and have been modified
+      // since the ifModifiedSince date
       {
         $match: {
           webId: selfWebId,
@@ -221,6 +231,7 @@ export class StoreService {
           ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
         },
       },
+      // Filter out ACL, channels, and value which aren't relevant here.
       {
         $project: {
           _id: 0,
@@ -229,8 +240,9 @@ export class StoreService {
           tombstone: 1,
         },
       },
+      // Get the most recent version of each object
       {
-        $sort: { lastModified: 1 },
+        $sort: { lastModified: 1, tombstone: -1 },
       },
       {
         $group: {
@@ -239,6 +251,7 @@ export class StoreService {
           tombstone: { $last: "$tombstone" },
         },
       },
+      // Fix the output
       {
         $project: {
           _id: 0,
@@ -267,12 +280,16 @@ export class StoreService {
     void
   > {
     for await (const output of this.storeModel.aggregate([
+      // Get all documents that have at least one channel
+      // and are owned by the current user
       {
         $match: {
           webId: selfWebId,
           channels: { $exists: true, $ne: [] },
         },
       },
+      // This may return a lot of results, so filter out
+      // the values and ACL since they're not needed here
       {
         $project: {
           _id: 0,
@@ -288,7 +305,7 @@ export class StoreService {
         $unwind: "$channels",
       },
       {
-        $sort: { lastModified: 1 },
+        $sort: { lastModified: 1, tombstone: -1 },
       },
       {
         $group: {
@@ -300,7 +317,7 @@ export class StoreService {
           tombstone: { $last: "$tombstone" },
         },
       },
-      // Count up the remaining objects
+      // Count up the remaining objects in each channel
       {
         $group: {
           _id: "$_id.channel",
@@ -320,6 +337,7 @@ export class StoreService {
       {
         $match: this.ifModifiedSinceQuery(options?.ifModifiedSince),
       },
+      // And fix the output
       {
         $project: {
           _id: 0,
@@ -355,11 +373,34 @@ export class StoreService {
           ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
         },
       },
+      // Mask out channels and ACL the user should not be able to query
       {
-        $sort: { lastModified: 1 },
+        $project: {
+          _id: 0,
+          tombstone: 1,
+          value: 1,
+          webId: 1,
+          name: 1,
+          lastModified: 1,
+          acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
+          channels: this.ifNotOwner("channels", selfWebId, {
+            $filter: {
+              input: "$channels",
+              as: "channel",
+              cond: {
+                $in: ["$$channel", channels],
+              },
+            },
+          }),
+        },
       },
+      // Perform the user query if it exists
+      ...(options?.query ? [{ $match: { $jsonSchema: options.query } }] : []),
       // Group by webId and name and reduce to only the latest
       // version of each document
+      {
+        $sort: { lastModified: 1, tombstone: -1 },
+      },
       {
         $group: {
           _id: { webId: "$webId", name: "$name" },
@@ -371,9 +412,7 @@ export class StoreService {
         },
       },
       // Mask out the value if the object has been deleted
-      // (ie tombstone is true)
-      // Mask out the _id and if user is not the owner
-      // and filter channels to only supplied channels
+      // (ie tombstone is true) and fix the webId/name fields
       {
         $project: {
           _id: 0,
@@ -388,30 +427,18 @@ export class StoreService {
           webId: "$_id.webId",
           name: "$_id.name",
           lastModified: 1,
-          acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
-          channels: this.ifNotOwner("channels", selfWebId, {
-            $filter: {
-              input: "$channels",
-              as: "channel",
-              cond: {
-                $in: ["$$channel", channels],
-              },
-            },
-          }),
+          acl: 1,
+          channels: 1,
         },
       },
+      // Sort again after grouping
+      {
+        $sort: { lastModified: 1 },
+      },
+      // Add optional skip and limits
+      ...(options?.skip ? [{ $skip: options.skip }] : []),
+      ...(options?.limit ? [{ $limit: options.limit }] : []),
     ];
-    if (options?.query) {
-      pipeline.push({ $match: { $jsonSchema: options.query } });
-    }
-    // Sort again after grouping/querying
-    pipeline.push({ $sort: { lastModified: 1 } });
-    if (options?.skip) {
-      pipeline.push({ $skip: options.skip });
-    }
-    if (options?.limit) {
-      pipeline.push({ $limit: options.limit });
-    }
 
     try {
       for await (const doc of this.storeModel.aggregate(pipeline)) {

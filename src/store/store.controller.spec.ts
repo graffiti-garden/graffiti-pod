@@ -429,4 +429,96 @@ describe("StoreController", () => {
       index++;
     }
   });
+
+  it("list channels", async () => {
+    const channels = [randomString(), randomString()];
+    const url = toUrl(randomString());
+    await request(solidFetch, url, "PUT", {
+      body: {},
+      channels,
+    });
+
+    const response = await request(
+      solidFetch,
+      baseUrl + "/list-channels",
+      "POST",
+    );
+    expect(response.ok).toBe(true);
+    const results = (await response.text())
+      .split("\n")
+      .map((r) => JSON.parse(r));
+    const relevant = results.filter((r) => channels.includes(r.channel));
+    expect(relevant.length).toBeLessThan(results.length);
+    expect(relevant.length).toBe(channels.length);
+    expect(relevant.map((r) => r.count)).toEqual(channels.map(() => 1));
+    expect(relevant.map((r) => r.channel).sort()).toEqual(channels.sort());
+    expect(relevant[0].lastModified).toEqual(relevant[1].lastModified);
+
+    const now = new Date();
+
+    await request(solidFetch, toUrl(randomString()), "PUT", {
+      body: {},
+      channels: [channels[0]],
+    });
+
+    const response2 = await request(
+      solidFetch,
+      baseUrl + "/list-channels",
+      "POST",
+      {
+        ifModifiedSince: now.toISOString(),
+      },
+    );
+    expect(response2.ok).toBe(true);
+    const results2 = await response2.json();
+    expect(results2.channel).toEqual(channels[0]);
+    expect(results2.count).toEqual(2);
+    expect(new Date(results2.lastModified).getTime()).toBeGreaterThan(
+      new Date(relevant[0].lastModified).getTime(),
+    );
+  });
+
+  it("list orphans", async () => {
+    const name = randomString();
+    await request(solidFetch, toUrl(name), "PUT", { body: {} });
+    const response = await request(
+      solidFetch,
+      baseUrl + "/list-orphans",
+      "POST",
+    );
+    expect(response.ok).toBe(true);
+    const results = (await response.text())
+      .split("\n")
+      .map((r) => JSON.parse(r));
+    const relevant = results.filter((r) => r.name === name);
+    expect(relevant.length).toBe(1);
+    expect(relevant.length).toBeLessThan(results.length);
+    expect(relevant[0].lastModified).toBeDefined();
+    expect(relevant[0].tombstone).toBe(false);
+
+    // Add channels to the orphan
+    const channels = [randomString(), randomString()];
+    await request(solidFetch, toUrl(name), "PUT", {
+      body: {},
+      channels,
+    });
+    const response2 = await request(
+      solidFetch,
+      baseUrl + "/list-orphans",
+      "POST",
+      {
+        ifModifiedSince: new Date(
+          new Date(relevant[0].lastModified).getTime() + 1,
+        ).toISOString(),
+      },
+    );
+
+    expect(response2.ok).toBe(true);
+    const results2 = await response2.json();
+    expect(results2.name).toBe(name);
+    expect(new Date(results2.lastModified).getTime()).toBeGreaterThan(
+      new Date(relevant[0].lastModified).getTime(),
+    );
+    expect(results2.tombstone).toBe(true);
+  });
 });

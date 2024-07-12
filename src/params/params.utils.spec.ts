@@ -2,6 +2,7 @@ import {
   encodeHeaderArray,
   decodeHeaderArray,
   rangeToSkipLimit,
+  parseDateString,
 } from "./params.utils";
 
 it("encode and decode empty array", () => {
@@ -69,4 +70,18 @@ it("bad skip of limit", () => {
   const { skip, limit } = rangeToSkipLimit("posts=asdf-30");
   expect(skip).toBeUndefined();
   expect(limit).toBe(31);
+});
+
+it("good date", () => {
+  const date = parseDateString("2021-01-01");
+  expect(date).toStrictEqual(new Date("2021-01-01"));
+});
+
+it("bad date", () => {
+  expect(() => parseDateString("asdf")).toThrow();
+});
+
+it("undefined date", () => {
+  const date = parseDateString(undefined);
+  expect(date).toBeUndefined();
 });

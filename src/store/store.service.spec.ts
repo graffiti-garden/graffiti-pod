@@ -208,6 +208,27 @@ describe("StoreService", () => {
     expect(result).toBeNull();
   });
 
+  it("put replace", async () => {
+    const go = randomGraffitiObject();
+    const deleted = await service.putObject(go);
+    expect(deleted).toBeNull();
+    const result1 = await service.getObject(go.webId, go.name, go.webId);
+    expect(result1?.value).toStrictEqual(go.value);
+    expect(result1?.channels).toStrictEqual(go.channels);
+    const go2 = randomGraffitiObject();
+    go2.name = go.name;
+    go2.webId = go.webId;
+    go2.channels = [randomString()];
+    const deleted2 = await service.putObject(go2);
+    expect(deleted2).toStrictEqual(result1);
+    const result2 = await service.getObject(go.webId, go.name, go.webId);
+    expect(result2?.value).toStrictEqual(go2.value);
+    expect(result2?.channels).toStrictEqual(go2.channels);
+    expect(result2?.lastModified.getTime()).toBeGreaterThan(
+      result1?.lastModified.getTime()!,
+    );
+  });
+
   it("delete non existant object", async () => {
     const deleted = await service.deleteObject(randomString(), randomString());
     expect(deleted).toBeNull();
@@ -647,6 +668,42 @@ describe("StoreService", () => {
       expect(result.value?.tombstone).toBe(true);
       expect(result.value?.value).toBe(undefined);
       expect(await iterator.next()).toHaveProperty("done", true);
+    });
+
+    it("query for replaced content", async () => {
+      const nothing = await service.putObject(go);
+      expect(nothing).toBeNull();
+      const go2 = randomGraffitiObject();
+      go2.channels = go.channels;
+      go2.webId = go.webId;
+      go2.name = go.name;
+      const replaced = await service.putObject(go2);
+      expect(replaced?.value).toEqual(go.value);
+      expect(replaced?.lastModified).toBeDefined();
+      const iterator = service.queryObjects(go.channels, null, {
+        ifModifiedSince: new Date(replaced?.lastModified.getTime()! + 1),
+        query: {
+          properties: {
+            value: {
+              required: Object.keys(go.value),
+            },
+          },
+        },
+      });
+      const result = await iterator.next();
+      expect(result.value?.name).toEqual(go.name);
+      expect(result.value?.tombstone).toBe(true);
+      expect(result.value?.value).toBeUndefined();
+      expect(await iterator.next()).toHaveProperty("done", true);
+      const iterator2 = service.queryObjects(go.channels, null);
+      const result2 = await iterator2.next();
+      expect(result2.value?.name).toEqual(go.name);
+      expect(result2.value?.tombstone).toBe(false);
+      expect(result2.value?.value).toEqual(go2.value);
+      expect(result2.value?.value).not.toEqual(go.value);
+      expect(result.value?.lastModified.getTime()).toEqual(
+        result2.value?.lastModified.getTime()!,
+      );
     });
 
     it("query for changed ACL", async () => {

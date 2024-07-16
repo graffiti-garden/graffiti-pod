@@ -1,123 +1,31 @@
 import WebIdManager from "./webid-manager";
+import type {
+  GraffitiLocalObject,
+  GraffitiLocation,
+  GraffitiObject,
+  GraffitiPatch,
+} from "./types";
 import type { JSONSchema4 } from "json-schema";
-import type { Operation as JSONPatchOperation } from "fast-json-patch";
+import {
+  parseErrorResponse,
+  parseGraffitiObjectResponse,
+  parseJSONListResponse,
+} from "./response-parsers";
+import { toUrl, fromUrl, parseLocationOrUrl } from "./types";
+import {
+  encodeACL,
+  encodeChannels,
+  encodeIfModifiedSince,
+  encodeJSONBody,
+  encodeSkipLimit,
+} from "./header-encoders";
 
-export interface GraffitiLocation {
-  name: string;
-  webId: string;
-  graffitiPod: string;
-}
-
-export interface GraffitiLocalObject {
-  value: any;
-  channels: string[];
-  acl?: string[];
-}
-
-export interface GraffitiPatch {
-  value?: JSONPatchOperation[];
-  channels?: JSONPatchOperation[];
-  acl?: JSONPatchOperation[];
-}
-
-export type GraffitiObject = GraffitiLocation & { lastModified: Date } & (
-    | ({ tombstone: false } & GraffitiLocalObject)
-    | {
-        tombstone: true;
-        value: null;
-        channels: string[];
-        acl?: string[];
-      }
-  );
-
-const decoder = new TextDecoder();
+export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
 export default class GraffitiClient {
   private webIdManager = new WebIdManager();
-
-  static toUrl(object: GraffitiObject): string;
-  static toUrl(location: GraffitiLocation): string;
-  static toUrl(location: GraffitiLocation) {
-    return `${location.graffitiPod}/${encodeURIComponent(location.webId)}/${encodeURIComponent(location.name)}`;
-  }
-
-  static fromUrl(url: string): GraffitiLocation {
-    const parts = url.split("/");
-    const nameEncoded = parts.pop();
-    const webIdEncoded = parts.pop();
-    if (!nameEncoded || !webIdEncoded || !parts.length) {
-      throw new Error("Invalid Graffiti URL");
-    }
-    return {
-      name: decodeURIComponent(nameEncoded),
-      webId: decodeURIComponent(webIdEncoded),
-      graffitiPod: parts.join("/"),
-    };
-  }
-
-  private static parseLocationOrUrl(locationOrUrl: GraffitiLocation | string): {
-    url: string;
-    location: GraffitiLocation;
-  } {
-    if (typeof locationOrUrl === "string") {
-      return {
-        url: locationOrUrl,
-        location: GraffitiClient.fromUrl(locationOrUrl),
-      };
-    } else {
-      return {
-        url: GraffitiClient.toUrl(locationOrUrl),
-        location: locationOrUrl,
-      };
-    }
-  }
-
-  private static async parseReponseError(response: Response): Promise<string> {
-    try {
-      const error = await response.json();
-      return error.message;
-    } catch {
-      return response.statusText;
-    }
-  }
-
-  private static async parseGraffitiObjectResponse(
-    response: Response,
-    location: GraffitiLocation,
-  ): Promise<GraffitiObject> {
-    if (!response.ok) {
-      throw new Error(await GraffitiClient.parseReponseError(response));
-    }
-
-    if (response.status === 201) {
-      return {
-        tombstone: true,
-        value: null,
-        channels: [],
-        lastModified: new Date(0),
-        ...location,
-      };
-    } else {
-      return {
-        tombstone: false,
-        value: await response.json(),
-        channels: response.headers.has("channels")
-          ? response.headers
-              .get("channels")!
-              .split(",")
-              .filter((s) => s)
-              .map(decodeURIComponent)
-          : [],
-        acl: response.headers
-          .get("access-control-list")
-          ?.split(",")
-          .filter((s) => s)
-          .map(decodeURIComponent),
-        lastModified: new Date(response.headers.get("last-modified") ?? 0),
-        ...location,
-      };
-    }
-  }
+  static toUrl = toUrl;
+  static fromUrl = fromUrl;
 
   async put(
     object: GraffitiLocalObject,
@@ -134,29 +42,22 @@ export default class GraffitiClient {
     locationOrUrl: GraffitiLocation | string,
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
-    const { location, url } = GraffitiClient.parseLocationOrUrl(locationOrUrl);
+    const { location, url } = parseLocationOrUrl(locationOrUrl);
     await this.webIdManager.addGraffitiPod(
       location.webId,
       location.graffitiPod,
       options,
     );
-    const headers = {
-      "Content-Type": "application/json",
-    };
-    for (const [prop, key] of [
-      ["acl", "Access-Control-List"],
-      ["channels", "Channels"],
-    ] as const) {
-      if (object[prop]) {
-        headers[key] = object[prop].map(encodeURIComponent).join(",");
-      }
+    const requestInit: RequestInit = { method: "PUT" };
+    encodeJSONBody(requestInit, object.value);
+    if (object["channels"]) {
+      encodeChannels(requestInit, object["channels"]);
     }
-    const response = await (options?.fetch ?? fetch)(url, {
-      method: "PUT",
-      headers,
-      body: JSON.stringify(object.value),
-    });
-    return GraffitiClient.parseGraffitiObjectResponse(response, location);
+    if (object["acl"]) {
+      encodeACL(requestInit, object["acl"]);
+    }
+    const response = await (options?.fetch ?? fetch)(url, requestInit);
+    return parseGraffitiObjectResponse(response, location);
   }
 
   async get(
@@ -171,7 +72,7 @@ export default class GraffitiClient {
     locationOrUrl: GraffitiLocation | string,
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
-    const { location, url } = GraffitiClient.parseLocationOrUrl(locationOrUrl);
+    const { location, url } = parseLocationOrUrl(locationOrUrl);
     if (
       !(await this.webIdManager.hasGraffitiPod(
         location.webId,
@@ -184,7 +85,7 @@ export default class GraffitiClient {
       );
     }
     const response = await (options?.fetch ?? fetch)(url);
-    return GraffitiClient.parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location);
   }
 
   async delete(
@@ -199,11 +100,11 @@ export default class GraffitiClient {
     locationOrUrl: GraffitiLocation | string,
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
-    const { location, url } = GraffitiClient.parseLocationOrUrl(locationOrUrl);
+    const { location, url } = parseLocationOrUrl(locationOrUrl);
     const response = await (options?.fetch ?? fetch)(url, {
       method: "DELETE",
     });
-    return GraffitiClient.parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location);
   }
 
   async patch(
@@ -221,39 +122,73 @@ export default class GraffitiClient {
     locationOrUrl: GraffitiLocation | string,
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
-    const { location, url } = GraffitiClient.parseLocationOrUrl(locationOrUrl);
+    const { location, url } = parseLocationOrUrl(locationOrUrl);
 
-    const requestInit: RequestInit = { method: "PATCH", headers: {} };
+    const requestInit: RequestInit = { method: "PATCH" };
     if (patch.value) {
-      requestInit.headers!["Content-Type"] = "application/json-patch+json";
-      requestInit.body = JSON.stringify(patch.value);
+      encodeJSONBody(requestInit, patch.value);
     }
-    for (const [prop, key] of [
-      ["acl", "Access-Control-List"],
-      ["channels", "Channels"],
-    ] as const) {
-      if (patch[prop]) {
-        requestInit.headers![key] = patch[prop]
-          .map((p) => JSON.stringify(p))
-          .map(encodeURIComponent)
-          .join(",");
-      }
+    if (patch.channels) {
+      encodeChannels(
+        requestInit,
+        patch.channels.map((p) => JSON.stringify(p)),
+      );
+    }
+    if (patch.acl) {
+      encodeACL(
+        requestInit,
+        patch.acl.map((p) => JSON.stringify(p)),
+      );
     }
     const response = await (options?.fetch ?? fetch)(url, requestInit);
-    return GraffitiClient.parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location);
   }
 
-  private static parseGraffitiObjectString(
-    s: string,
-    graffitiPod: string,
-  ): GraffitiObject {
-    const parsed = JSON.parse(s);
-    return {
-      ...parsed,
-      lastModified: new Date(parsed.lastModified),
-      graffitiPod,
+  private list(listType: string) {
+    return async function* (
+      graffitiPod: string,
+      options?: {
+        fetch?: typeof fetch;
+        ifModifiedSince?: Date;
+      },
+    ): AsyncGenerator<any, void, void> {
+      const requestInit: RequestInit = { method: "POST" };
+      if (options?.ifModifiedSince) {
+        encodeIfModifiedSince(requestInit, options.ifModifiedSince);
+      }
+      const response = await (options?.fetch ?? fetch)(
+        graffitiPod + "/list-" + listType,
+        requestInit,
+      );
+      for await (const json of parseJSONListResponse(response)) {
+        yield json;
+      }
     };
   }
+
+  listChannels: (
+    ...args: Parameters<ReturnType<GraffitiClient["list"]>>
+  ) => AsyncGenerator<
+    {
+      channel: string;
+      count: number;
+      lastModified: Date;
+    },
+    void,
+    void
+  > = this.list("channels");
+
+  listOrphans: (
+    ...args: Parameters<ReturnType<GraffitiClient["list"]>>
+  ) => AsyncGenerator<
+    {
+      name: string;
+      tombstone: boolean;
+      lastModified: Date;
+    },
+    void,
+    void
+  > = this.list("orphans");
 
   async *query(
     channels: string[],
@@ -266,63 +201,41 @@ export default class GraffitiClient {
       fetch?: typeof fetch;
     },
   ): AsyncGenerator<GraffitiObject, void, void> {
-    const requestInit: RequestInit = { method: "POST", headers: {} };
-
-    requestInit.headers!["Channels"] = channels.join(",");
+    const requestInit: RequestInit = { method: "POST" };
+    encodeChannels(requestInit, channels);
 
     if (options) {
       if (options.query) {
-        requestInit.headers!["Content-Type"] = "application/json";
-        requestInit.body = JSON.stringify(options.query);
+        encodeJSONBody(requestInit, options.query);
       }
       if (options.ifModifiedSince) {
-        requestInit.headers!["If-Modified-Since"] =
-          options.ifModifiedSince.toISOString();
+        encodeIfModifiedSince(requestInit, options.ifModifiedSince);
       }
-      if (
-        typeof options.limit === "number" ||
-        typeof options.skip === "number"
-      ) {
-        if (typeof options.skip === "number" && options?.skip < 0) {
-          throw new Error("The skip must be non-negative.");
-        }
-        if (typeof options.limit === "number" && options?.limit < 1) {
-          throw new Error("The limit must be at least 1.");
-        }
-        requestInit.headers!["Range"] =
-          `=${options.skip ?? ""}-${typeof options.limit === "number" ? options.limit - 1 + (options.skip ?? 0) : ""}`;
-      }
+      encodeSkipLimit(requestInit, options.skip, options.limit);
     }
 
     const response = await (options?.fetch ?? fetch)(graffitiPod, requestInit);
     if (!response.ok) {
-      const errorMessage = await GraffitiClient.parseReponseError(response);
-      throw new Error(errorMessage);
+      throw await parseErrorResponse(response);
     }
 
-    // Parse the body as a readable stream
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("Failed to get a reader from the response body");
-    }
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
+    for await (const json of parseJSONListResponse(response)) {
+      const object: GraffitiObject = {
+        ...json,
+        graffitiPod,
+      };
 
-      if (value) {
-        buffer += decoder.decode(value);
-        const parts = buffer.split("\n");
-        buffer = parts.pop() ?? "";
-        for (const part of parts) {
-          yield GraffitiClient.parseGraffitiObjectString(part, graffitiPod);
-        }
+      // Only yield the object if the owner has
+      // authorized the graffiti pod to host for them.
+      if (
+        await this.webIdManager.hasGraffitiPod(
+          object.webId,
+          object.graffitiPod,
+          options,
+        )
+      ) {
+        yield object;
       }
-
-      if (done) break;
-    }
-    // Clear the buffer
-    if (buffer) {
-      yield GraffitiClient.parseGraffitiObjectString(buffer, graffitiPod);
     }
   }
 }

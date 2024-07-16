@@ -1,15 +1,8 @@
-import { describe, it, expect } from "vitest";
-import * as secrets from "../.secrets.json";
-import { Session } from "@inrupt/solid-client-authn-node";
+import { it, expect } from "vitest";
 import WebIdManager from "./webid-manager";
+import { solidLogin } from "./test-utils";
 
-const session = new Session({ keepAlive: true });
-await session.login(secrets);
-if (!session.info.isLoggedIn || !session.info.webId) {
-  throw new Error("Could not log in");
-}
-const fetch = session.fetch;
-const webId = session.info.webId;
+const { fetch, webId } = await solidLogin();
 
 it("Add and remove pods", async () => {
   const podName = `https://${Math.random().toString(36).substring(7)}.com`;

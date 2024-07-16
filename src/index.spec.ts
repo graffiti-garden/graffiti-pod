@@ -1,46 +1,16 @@
 import { it, expect } from "vitest";
-import * as secrets from "../.secrets.json";
-import { Session } from "@inrupt/solid-client-authn-node";
+import {
+  randomString,
+  randomLocation as randomGenericLocation,
+  randomValue,
+  solidLogin,
+  homePod,
+} from "./test-utils";
 import GraffitiClient, { GraffitiPatch } from ".";
 
-const session = new Session({ keepAlive: true });
-await session.login(secrets);
-if (!session.info.isLoggedIn || !session.info.webId) {
-  throw new Error("Could not log in");
-}
-const fetch = session.fetch;
-const webId = session.info.webId;
+const { fetch, webId } = await solidLogin();
 
-function randomString(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function randomValue() {
-  return {
-    [randomString()]: randomString(),
-  };
-}
-
-// const homePod = "http://localhost:3000";
-const homePod = "https://pod.graffiti.garden";
-function randomLocation() {
-  return {
-    name: randomString(),
-    webId,
-    graffitiPod: homePod,
-  };
-}
-
-it("url and location", async () => {
-  const location = randomLocation();
-  const url = GraffitiClient.toUrl(location);
-  const location2 = GraffitiClient.fromUrl(url);
-  expect(location).toEqual(location2);
-});
+const randomLocation = () => randomGenericLocation(webId);
 
 it("Put, replace, delete", async () => {
   const value = {

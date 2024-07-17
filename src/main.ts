@@ -5,10 +5,27 @@ import {
 } from "@nestjs/platform-fastify";
 import { AppModule } from "./app.module";
 
+const headers = [
+  "Content-Type",
+  "Authorization",
+  "DPoP",
+  "Acess-Control-List",
+  "Channels",
+  "Last-Modified",
+  "Range",
+];
+
 async function bootstrap() {
+  const fastify = new FastifyAdapter();
+  fastify.enableCors({
+    origin: "*",
+    methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
+    allowedHeaders: headers,
+    exposedHeaders: headers,
+  });
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    fastify,
   );
   await app.listen(3000, "0.0.0.0");
 }

@@ -105,7 +105,6 @@ sudo systemctl restart graffiti-pod.service
 
 ## TODO:
 
-- test for querying deleted/moved stuff
 - Complete DHT implimentation
   - Watch for added channels, compute info hash, store the (channel, infoHash) pair for lookup in the database, and publish the info hash to the DHT
   - Watch for deleted channels and remove info hashes from the database and DHT as necessary
@@ -113,5 +112,3 @@ sudo systemctl restart graffiti-pod.service
   - Add an endpoint that users can use to check if the server knows a particular channel, without revealing that channel, via the ZK proof.
 - Create a recurring timer that deletes irrelevant tombstones
   - Return the expiration time in a meta data hook, so clients can know when their cache is stale
-- Add endpoints for listing all user channels and posts
-- Add endpoints for listing all user posts and/or posts with a specific channel

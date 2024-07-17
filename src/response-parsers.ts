@@ -62,6 +62,10 @@ function parseGraffitiObjectString(s: string): any {
 
 const decoder = new TextDecoder();
 export async function* parseJSONListResponse(response: Response) {
+  if (!response.ok) {
+    throw await parseErrorResponse(response);
+  }
+
   const reader = response.body?.getReader();
   if (!reader) {
     throw new Error("Failed to get a reader from the response body");

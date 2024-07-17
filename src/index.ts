@@ -7,7 +7,6 @@ import type {
 } from "./types";
 import type { JSONSchema4 } from "json-schema";
 import {
-  parseErrorResponse,
   parseGraffitiObjectResponse,
   parseJSONListResponse,
 } from "./response-parsers";
@@ -166,9 +165,9 @@ export default class GraffitiClient {
     };
   }
 
-  listChannels: (
+  listChannels(
     ...args: Parameters<ReturnType<GraffitiClient["list"]>>
-  ) => AsyncGenerator<
+  ): AsyncGenerator<
     {
       channel: string;
       count: number;
@@ -176,11 +175,13 @@ export default class GraffitiClient {
     },
     void,
     void
-  > = this.list("channels");
+  > {
+    return this.list("channels")(...args);
+  }
 
-  listOrphans: (
+  listOrphans(
     ...args: Parameters<ReturnType<GraffitiClient["list"]>>
-  ) => AsyncGenerator<
+  ): AsyncGenerator<
     {
       name: string;
       tombstone: boolean;
@@ -188,7 +189,9 @@ export default class GraffitiClient {
     },
     void,
     void
-  > = this.list("orphans");
+  > {
+    return this.list("orphans")(...args);
+  }
 
   async *query(
     channels: string[],
@@ -215,9 +218,6 @@ export default class GraffitiClient {
     }
 
     const response = await (options?.fetch ?? fetch)(graffitiPod, requestInit);
-    if (!response.ok) {
-      throw await parseErrorResponse(response);
-    }
 
     for await (const json of parseJSONListResponse(response)) {
       const object: GraffitiObject = {

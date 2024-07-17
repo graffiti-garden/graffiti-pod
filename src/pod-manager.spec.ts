@@ -1,21 +1,21 @@
 import { it, expect } from "vitest";
-import WebIdManager from "./webid-manager";
+import PodManager from "./pod-manager";
 import { solidLogin } from "./test-utils";
 
 const { fetch, webId } = await solidLogin();
 
 it("Add and remove pods", async () => {
   const podName = `https://${Math.random().toString(36).substring(7)}.com`;
-  const manager = new WebIdManager();
+  const manager = new PodManager();
 
-  let pods = await manager.getGraffitiPods(webId);
+  let pods = await manager.getPods(webId);
   expect(pods).not.toContain(podName);
 
-  await manager.addGraffitiPod(webId, podName, { fetch });
-  pods = await manager.getGraffitiPods(webId);
+  await manager.addPod(webId, podName, { fetch });
+  pods = await manager.getPods(webId);
   expect(pods).toContain(podName);
 
-  await manager.removeGraffitiPod(webId, podName, { fetch });
-  pods = await manager.getGraffitiPods(webId);
+  await manager.removePod(webId, podName, { fetch });
+  pods = await manager.getPods(webId);
   expect(pods).not.toContain(podName);
 }, 100000);

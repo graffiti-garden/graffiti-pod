@@ -14,8 +14,8 @@ import {
 
 const POD_PREDICATE = "https://graffiti.garden/ns/graffitiPod";
 
-export default class WebIdManager {
-  private podCache = new Map<string, string[]>();
+export default class PodManager {
+  private readonly podCache = new Map<string, string[]>();
 
   private async getProfile(
     webId: string,
@@ -55,16 +55,13 @@ export default class WebIdManager {
     );
   }
 
-  private extractAndCacheGraffitiPods(
-    webId: string,
-    profileThing: ThingPersisted,
-  ) {
+  private extractAndCachePods(webId: string, profileThing: ThingPersisted) {
     const pods = getUrlAll(profileThing, POD_PREDICATE);
     this.podCache.set(webId, pods);
     return pods;
   }
 
-  async getGraffitiPods(
+  async getPods(
     webId: string,
     options?: {
       fetch?: typeof fetch;
@@ -73,49 +70,49 @@ export default class WebIdManager {
     const existingPods = this.podCache.get(webId);
     if (existingPods) return existingPods;
     const { profileThing } = await this.getProfile(webId, options);
-    return this.extractAndCacheGraffitiPods(webId, profileThing);
+    return this.extractAndCachePods(webId, profileThing);
   }
 
-  async hasGraffitiPod(
+  async hasPod(
     webId: string,
-    graffitiPod: string,
+    pod: string,
     options?: {
       fetch?: typeof fetch;
     },
   ) {
-    const pods = await this.getGraffitiPods(webId, options);
-    return pods.includes(graffitiPod);
+    const pods = await this.getPods(webId, options);
+    return pods.includes(pod);
   }
 
-  async addGraffitiPod(
+  async addPod(
     webId: string,
-    graffitiPod: string,
-    options?: {
-      fetch?: typeof fetch;
-    },
-  ) {
-    const { profile, profileThing } = await this.getProfile(webId, options);
-    if (getUrlAll(profileThing, POD_PREDICATE).includes(graffitiPod)) {
-      return;
-    }
-    const profileThingNew = addUrl(profileThing, POD_PREDICATE, graffitiPod);
-    await this.saveProfile(profile, profileThingNew, options);
-    this.extractAndCacheGraffitiPods(webId, profileThingNew);
-  }
-
-  async removeGraffitiPod(
-    webId: string,
-    graffitiPod: string,
+    pod: string,
     options?: {
       fetch?: typeof fetch;
     },
   ) {
     const { profile, profileThing } = await this.getProfile(webId, options);
-    if (!getUrlAll(profileThing, POD_PREDICATE).includes(graffitiPod)) {
+    if (getUrlAll(profileThing, POD_PREDICATE).includes(pod)) {
       return;
     }
-    const profileThingNew = removeUrl(profileThing, POD_PREDICATE, graffitiPod);
+    const profileThingNew = addUrl(profileThing, POD_PREDICATE, pod);
     await this.saveProfile(profile, profileThingNew, options);
-    this.extractAndCacheGraffitiPods(webId, profileThingNew);
+    this.extractAndCachePods(webId, profileThingNew);
+  }
+
+  async removePod(
+    webId: string,
+    pod: string,
+    options?: {
+      fetch?: typeof fetch;
+    },
+  ) {
+    const { profile, profileThing } = await this.getProfile(webId, options);
+    if (!getUrlAll(profileThing, POD_PREDICATE).includes(pod)) {
+      return;
+    }
+    const profileThingNew = removeUrl(profileThing, POD_PREDICATE, pod);
+    await this.saveProfile(profile, profileThingNew, options);
+    this.extractAndCachePods(webId, profileThingNew);
   }
 }

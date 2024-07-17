@@ -28,13 +28,13 @@ export type GraffitiObject = GraffitiLocation & { lastModified: Date } & (
       }
   );
 
-export function toUrl(object: GraffitiObject): string;
-export function toUrl(location: GraffitiLocation): string;
-export function toUrl(location: GraffitiLocation) {
+export function locationToUrl(object: GraffitiObject): string;
+export function locationToUrl(location: GraffitiLocation): string;
+export function locationToUrl(location: GraffitiLocation) {
   return `${location.pod}/${encodeURIComponent(location.webId)}/${encodeURIComponent(location.name)}`;
 }
 
-export function fromUrl(url: string): GraffitiLocation {
+export function urlToLocation(url: string): GraffitiLocation {
   const parts = url.split("/");
   const nameEncoded = parts.pop();
   const webIdEncoded = parts.pop();
@@ -55,11 +55,11 @@ export function parseLocationOrUrl(locationOrUrl: GraffitiLocation | string): {
   if (typeof locationOrUrl === "string") {
     return {
       url: locationOrUrl,
-      location: fromUrl(locationOrUrl),
+      location: urlToLocation(locationOrUrl),
     };
   } else {
     return {
-      url: toUrl(locationOrUrl),
+      url: locationToUrl(locationOrUrl),
       location: locationOrUrl,
     };
   }

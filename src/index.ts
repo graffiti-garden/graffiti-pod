@@ -1,4 +1,4 @@
-import WebIdManager from "./webid-manager";
+import PodManager from "./pod-manager";
 import type {
   GraffitiLocalObject,
   GraffitiLocation,
@@ -22,9 +22,14 @@ import {
 export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
 export default class GraffitiClient {
-  private webIdManager = new WebIdManager();
-  static toUrl = toUrl;
-  static fromUrl = fromUrl;
+  readonly podManager = new PodManager();
+
+  locationToUrl(location: GraffitiLocation): string {
+    return toUrl(location);
+  }
+  urlToLocation(url: string): GraffitiLocation {
+    return fromUrl(url);
+  }
 
   async put(
     object: GraffitiLocalObject,
@@ -42,11 +47,7 @@ export default class GraffitiClient {
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
-    await this.webIdManager.addGraffitiPod(
-      location.webId,
-      location.pod,
-      options,
-    );
+    await this.podManager.addPod(location.webId, location.pod, options);
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
     if (object["channels"]) {
@@ -73,11 +74,7 @@ export default class GraffitiClient {
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     if (
-      !(await this.webIdManager.hasGraffitiPod(
-        location.webId,
-        location.pod,
-        options,
-      ))
+      !(await this.podManager.hasPod(location.webId, location.pod, options))
     ) {
       throw new Error(
         `The Graffiti pod ${location.pod} is not registered with the WebID ${location.webId}`,
@@ -227,13 +224,7 @@ export default class GraffitiClient {
 
       // Only yield the object if the owner has
       // authorized the graffiti pod to host for them.
-      if (
-        await this.webIdManager.hasGraffitiPod(
-          object.webId,
-          object.pod,
-          options,
-        )
-      ) {
+      if (await this.podManager.hasPod(object.webId, object.pod, options)) {
         yield object;
       }
     }

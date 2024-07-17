@@ -44,7 +44,7 @@ export default class GraffitiClient {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     await this.webIdManager.addGraffitiPod(
       location.webId,
-      location.graffitiPod,
+      location.pod,
       options,
     );
     const requestInit: RequestInit = { method: "PUT" };
@@ -75,12 +75,12 @@ export default class GraffitiClient {
     if (
       !(await this.webIdManager.hasGraffitiPod(
         location.webId,
-        location.graffitiPod,
+        location.pod,
         options,
       ))
     ) {
       throw new Error(
-        `The Graffiti pod ${location.graffitiPod} is not registered with the WebID ${location.webId}`,
+        `The Graffiti pod ${location.pod} is not registered with the WebID ${location.webId}`,
       );
     }
     const response = await (options?.fetch ?? fetch)(url);
@@ -145,7 +145,7 @@ export default class GraffitiClient {
 
   private list(listType: string) {
     return async function* (
-      graffitiPod: string,
+      pod: string,
       options?: {
         fetch?: typeof fetch;
         ifModifiedSince?: Date;
@@ -156,7 +156,7 @@ export default class GraffitiClient {
         encodeIfModifiedSince(requestInit, options.ifModifiedSince);
       }
       const response = await (options?.fetch ?? fetch)(
-        graffitiPod + "/list-" + listType,
+        pod + "/list-" + listType,
         requestInit,
       );
       for await (const json of parseJSONListResponse(response)) {
@@ -195,7 +195,7 @@ export default class GraffitiClient {
 
   async *query(
     channels: string[],
-    graffitiPod: string,
+    pod: string,
     options?: {
       query?: JSONSchema4;
       ifModifiedSince?: Date;
@@ -217,12 +217,12 @@ export default class GraffitiClient {
       encodeSkipLimit(requestInit, options.skip, options.limit);
     }
 
-    const response = await (options?.fetch ?? fetch)(graffitiPod, requestInit);
+    const response = await (options?.fetch ?? fetch)(pod, requestInit);
 
     for await (const json of parseJSONListResponse(response)) {
       const object: GraffitiObject = {
         ...json,
-        graffitiPod,
+        pod,
       };
 
       // Only yield the object if the owner has
@@ -230,7 +230,7 @@ export default class GraffitiClient {
       if (
         await this.webIdManager.hasGraffitiPod(
           object.webId,
-          object.graffitiPod,
+          object.pod,
           options,
         )
       ) {

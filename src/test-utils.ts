@@ -1,8 +1,6 @@
 import * as secrets from "../.secrets.json";
 import { Session } from "@inrupt/solid-client-authn-node";
 
-export const homePod = "https://pod.graffiti.garden";
-
 export async function solidLogin() {
   const session = new Session({ keepAlive: true });
   await session.login(secrets);
@@ -23,11 +21,11 @@ export function randomString(): string {
     .join("");
 }
 
-export function randomLocation(webId: string, graffitiPod = homePod) {
+export function randomLocation(webId: string, pod: string) {
   return {
     name: randomString(),
     webId,
-    graffitiPod,
+    pod,
   };
 }
 

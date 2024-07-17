@@ -3,7 +3,7 @@ import type { Operation as JSONPatchOperation } from "fast-json-patch";
 export interface GraffitiLocation {
   name: string;
   webId: string;
-  graffitiPod: string;
+  pod: string;
 }
 
 export interface GraffitiLocalObject {
@@ -31,7 +31,7 @@ export type GraffitiObject = GraffitiLocation & { lastModified: Date } & (
 export function toUrl(object: GraffitiObject): string;
 export function toUrl(location: GraffitiLocation): string;
 export function toUrl(location: GraffitiLocation) {
-  return `${location.graffitiPod}/${encodeURIComponent(location.webId)}/${encodeURIComponent(location.name)}`;
+  return `${location.pod}/${encodeURIComponent(location.webId)}/${encodeURIComponent(location.name)}`;
 }
 
 export function fromUrl(url: string): GraffitiLocation {
@@ -44,7 +44,7 @@ export function fromUrl(url: string): GraffitiLocation {
   return {
     name: decodeURIComponent(nameEncoded),
     webId: decodeURIComponent(webIdEncoded),
-    graffitiPod: parts.join("/"),
+    pod: parts.join("/"),
   };
 }
 

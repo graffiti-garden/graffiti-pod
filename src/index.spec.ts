@@ -4,13 +4,13 @@ import {
   randomLocation as randomGenericLocation,
   randomValue,
   solidLogin,
-  homePod,
 } from "./test-utils";
 import GraffitiClient, { GraffitiPatch } from ".";
 
 const { fetch, webId } = await solidLogin();
 
-const randomLocation = () => randomGenericLocation(webId);
+const homePod = "https://pod.graffiti.garden";
+const randomLocation = () => randomGenericLocation(webId, homePod);
 
 it("Put, replace, delete", async () => {
   const value = {
@@ -24,14 +24,14 @@ it("Put, replace, delete", async () => {
   expect(previous.value).toBeNull();
   expect(previous.name).toEqual(location.name);
   expect(previous.webId).toEqual(location.webId);
-  expect(previous.graffitiPod).toEqual(location.graffitiPod);
+  expect(previous.pod).toEqual(location.pod);
   const gotten = await graffiti.get(location);
   expect(gotten.value).toEqual(value);
   expect(gotten.channels).toEqual([]);
   expect(gotten.acl).toBeUndefined();
   expect(gotten.name).toEqual(location.name);
   expect(gotten.webId).toEqual(location.webId);
-  expect(gotten.graffitiPod).toEqual(location.graffitiPod);
+  expect(gotten.pod).toEqual(location.pod);
 
   // Replace it and get again
   const newValue = {

@@ -318,3 +318,168 @@ it("query with skip and limit", async () => {
   const result = await iterator.next();
   expect(result.done).toBe(true);
 });
+
+it("list orphans", async () => {
+  const graffiti = new GraffitiClient();
+  const existingOrphans: string[] = [];
+  const orphanIterator1 = graffiti.listOrphans(homePod, { fetch });
+  for await (const orphan of orphanIterator1) {
+    existingOrphans.push(orphan.name);
+  }
+  const location = randomLocation();
+  await graffiti.put({ value: randomValue(), channels: [] }, location, {
+    fetch,
+  });
+  const orphanIterator2 = graffiti.listOrphans(homePod, { fetch });
+  let newOrphans: string[] = [];
+  for await (const orphan of orphanIterator2) {
+    newOrphans.push(orphan.name);
+    if (orphan.name === location.name) {
+      expect(orphan.tombstone).toBe(false);
+    }
+  }
+  newOrphans = newOrphans.filter((orphan) => !existingOrphans.includes(orphan));
+  expect(newOrphans).toEqual([location.name]);
+});
+
+it("list orphans with ifModifiedSince", async () => {
+  const graffiti = new GraffitiClient();
+  const now = new Date();
+  const location = randomLocation();
+  await graffiti.put({ value: randomValue(), channels: [] }, location, {
+    fetch,
+  });
+  const orphanIterator = graffiti.listOrphans(homePod, {
+    fetch,
+    ifModifiedSince: now,
+  });
+  const result = await orphanIterator.next();
+  expect(result.value?.name).toEqual(location.name);
+  expect(result.value?.lastModified.getTime()).toBeGreaterThan(now.getTime());
+  await expect(orphanIterator.next()).resolves.toHaveProperty("done", true);
+});
+
+it("deleted orphan", async () => {
+  const now = new Date();
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  // Put it, then add a channel to make it no longer an orphan
+  await graffiti.put({ value: randomValue(), channels: [] }, location, {
+    fetch,
+  });
+  await graffiti.put(
+    { value: randomValue(), channels: ["an actual channel"] },
+    location,
+    {
+      fetch,
+    },
+  );
+  const orphanIterator = graffiti.listOrphans(homePod, {
+    fetch,
+    ifModifiedSince: now,
+  });
+  const result = await orphanIterator.next();
+  expect(result.value?.name).toEqual(location.name);
+  expect(result.value?.tombstone).toBe(true);
+  expect(result.value?.lastModified.getTime()).toBeGreaterThan(now.getTime());
+  await expect(orphanIterator.next()).resolves.toHaveProperty("done", true);
+});
+
+it("list channels", async () => {
+  const graffiti = new GraffitiClient();
+  const existingChannels: Map<string, number> = new Map();
+  const channelIterator1 = graffiti.listChannels(homePod, { fetch });
+  for await (const channel of channelIterator1) {
+    existingChannels.set(channel.channel, channel.count);
+  }
+
+  const channels = [randomString(), randomString(), randomString()];
+
+  // Add one value to channels[0],
+  // two values to both channels[0] and channels[1],
+  // three values to all channels
+  // one value to channels[2]
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < i + 1; j++) {
+      await graffiti.put(
+        { value: { index: j }, channels: channels.slice(0, i + 1) },
+        randomLocation(),
+        { fetch },
+      );
+    }
+  }
+  await graffiti.put(
+    { value: { index: 3 }, channels: [channels[2]] },
+    randomLocation(),
+    { fetch },
+  );
+
+  const channelIterator2 = graffiti.listChannels(homePod, { fetch });
+  let newChannels: Map<string, number> = new Map();
+  for await (const channel of channelIterator2) {
+    newChannels.set(channel.channel, channel.count);
+  }
+  // Filter out existing channels
+  newChannels = new Map(
+    Array.from(newChannels).filter(
+      ([channel, count]) => !existingChannels.has(channel),
+    ),
+  );
+  expect(newChannels.size).toBe(3);
+  expect(newChannels.get(channels[0])).toBe(6);
+  expect(newChannels.get(channels[1])).toBe(5);
+  expect(newChannels.get(channels[2])).toBe(4);
+});
+
+it("list channels with ifModifiedSince", async () => {
+  const graffiti = new GraffitiClient();
+  const now = new Date();
+  const channels = [randomString(), randomString(), randomString()];
+  for (let i = 0; i < 3; i++) {
+    await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
+      fetch,
+    });
+  }
+  const channelIterator = graffiti.listChannels(homePod, {
+    fetch,
+    ifModifiedSince: now,
+  });
+  let newChannels: Map<string, number> = new Map();
+  for await (const channel of channelIterator) {
+    newChannels.set(channel.channel, channel.count);
+  }
+  expect(newChannels.size).toBe(3);
+  expect(newChannels.get(channels[0])).toBe(3);
+  expect(newChannels.get(channels[1])).toBe(3);
+  expect(newChannels.get(channels[2])).toBe(3);
+});
+
+it("list channels with deleted channel", async () => {
+  const graffiti = new GraffitiClient();
+  const now = new Date();
+  const channels = [randomString(), randomString(), randomString()];
+  const location = randomLocation();
+  await graffiti.put({ value: { index: 0 }, channels }, location, {
+    fetch,
+  });
+  await graffiti.put(
+    { value: { index: 1 }, channels: channels.slice(1) },
+    location,
+    {
+      fetch,
+    },
+  );
+
+  const channelIterator = graffiti.listChannels(homePod, {
+    fetch,
+    ifModifiedSince: now,
+  });
+  let newChannels: Map<string, number> = new Map();
+  for await (const channel of channelIterator) {
+    newChannels.set(channel.channel, channel.count);
+  }
+  expect(newChannels.size).toBe(3);
+  expect(newChannels.get(channels[0])).toBe(0);
+  expect(newChannels.get(channels[1])).toBe(1);
+  expect(newChannels.get(channels[2])).toBe(1);
+});

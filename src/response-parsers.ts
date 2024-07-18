@@ -14,49 +14,61 @@ export async function parseErrorResponse(response: Response): Promise<Error> {
   }
 }
 
+export function parseEncodedStringArrayHeader<T>(
+  header: string | null | undefined,
+  nullValue: T,
+): string[] | T {
+  if (typeof header !== "string") return nullValue;
+  return header
+    .split(",")
+    .filter((s) => s)
+    .map(decodeURIComponent);
+}
+
 export async function parseGraffitiObjectResponse(
   response: Response,
   location: GraffitiLocation,
+  isGet: boolean,
 ): Promise<GraffitiObject> {
   if (!response.ok) {
     throw await parseErrorResponse(response);
   }
 
-  if (response.status === 201) {
-    return {
-      tombstone: true,
-      value: null,
-      channels: [],
-      lastModified: new Date(0),
-      ...location,
-    };
-  } else {
-    return {
-      tombstone: false,
-      value: await response.json(),
-      channels: response.headers.has("channels")
-        ? response.headers
-            .get("channels")!
-            .split(",")
-            .filter((s) => s)
-            .map(decodeURIComponent)
-        : [],
-      acl: response.headers
-        .get("access-control-list")
-        ?.split(",")
-        .filter((s) => s)
-        .map(decodeURIComponent),
-      lastModified: new Date(response.headers.get("last-modified") ?? 0),
-      ...location,
-    };
+  let value: any;
+  try {
+    value = await response.json();
+  } catch (e) {
+    value = null;
   }
+  return {
+    tombstone: !isGet,
+    value,
+    channels: parseEncodedStringArrayHeader(
+      response.headers.get("channels"),
+      [],
+    ),
+    acl: parseEncodedStringArrayHeader(
+      response.headers.get("access-control-list"),
+      undefined,
+    ),
+    lastModified: new Date(response.headers.get("last-modified") ?? NaN),
+    ...location,
+  };
 }
 
 function parseGraffitiObjectString(s: string): any {
-  const parsed = JSON.parse(s);
+  // Filter out bad values
+  let parsed: any;
+  try {
+    parsed = JSON.parse(s);
+  } catch (e) {
+    return;
+  }
+  if (typeof parsed !== "object" || Array.isArray(parsed)) return;
+
   return {
     ...parsed,
-    lastModified: new Date(parsed.lastModified),
+    lastModified: new Date(parsed.lastModified ?? NaN),
   };
 }
 
@@ -79,7 +91,8 @@ export async function* parseJSONListResponse(response: Response) {
       const parts = buffer.split("\n");
       buffer = parts.pop() ?? "";
       for (const part of parts) {
-        yield parseGraffitiObjectString(part);
+        const parsed = parseGraffitiObjectString(part);
+        if (parsed) yield parsed;
       }
     }
 
@@ -88,6 +101,7 @@ export async function* parseJSONListResponse(response: Response) {
 
   // Clear the buffer
   if (buffer) {
-    yield parseGraffitiObjectString(buffer);
+    const parsed = parseGraffitiObjectString(buffer);
+    if (parsed) yield parsed;
   }
 }

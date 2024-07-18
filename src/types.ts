@@ -18,15 +18,8 @@ export interface GraffitiPatch {
   acl?: JSONPatchOperation[];
 }
 
-export type GraffitiObject = GraffitiLocation & { lastModified: Date } & (
-    | ({ tombstone: false } & GraffitiLocalObject)
-    | {
-        tombstone: true;
-        value: null;
-        channels: string[];
-        acl?: string[];
-      }
-  );
+export type GraffitiObject = GraffitiLocalObject &
+  GraffitiLocation & { lastModified: Date; tombstone: boolean };
 
 export function locationToUrl(object: GraffitiObject): string;
 export function locationToUrl(location: GraffitiLocation): string;

@@ -44,13 +44,13 @@ it("Put, replace, delete", async () => {
       fetch,
     },
   );
-  expect(beforeReplaced).toEqual(gotten);
+  expect(beforeReplaced).toEqual({ ...gotten, tombstone: true });
   const afterReplaced = await graffiti.get(location);
   expect(afterReplaced.value).toEqual(newValue);
 
   // Finally, delete
   const beforeDeleted = await graffiti.delete(location, { fetch });
-  expect(beforeDeleted).toEqual(afterReplaced);
+  expect(beforeDeleted).toEqual({ ...afterReplaced, tombstone: true });
   await expect(graffiti.get(location)).rejects.toThrow();
 });
 
@@ -85,11 +85,13 @@ it("patch value", async () => {
     something: "hello, world~ c:",
   };
   await graffiti.put({ value, channels: [] }, location, { fetch });
+  const put = await graffiti.get(location);
 
   const patch: GraffitiPatch = {
     value: [{ op: "replace", path: "/something", value: "goodbye, world~ c:" }],
   };
-  await graffiti.patch(patch, location, { fetch });
+  const beforePatched = await graffiti.patch(patch, location, { fetch });
+  expect(beforePatched).toEqual({ ...put, tombstone: true });
   const gotten = await graffiti.get(location);
   expect(gotten.value).toEqual({
     something: "goodbye, world~ c:",

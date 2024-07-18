@@ -10,7 +10,7 @@ import {
   parseGraffitiObjectResponse,
   parseJSONListResponse,
 } from "./response-parsers";
-import { toUrl, fromUrl, parseLocationOrUrl } from "./types";
+import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import {
   encodeACL,
   encodeChannels,
@@ -25,10 +25,10 @@ export default class GraffitiClient {
   readonly podManager = new PodManager();
 
   locationToUrl(location: GraffitiLocation): string {
-    return toUrl(location);
+    return locationToUrl(location);
   }
   urlToLocation(url: string): GraffitiLocation {
-    return fromUrl(url);
+    return urlToLocation(url);
   }
 
   async put(
@@ -57,7 +57,7 @@ export default class GraffitiClient {
       encodeACL(requestInit, object["acl"]);
     }
     const response = await (options?.fetch ?? fetch)(url, requestInit);
-    return parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location, false);
   }
 
   async get(
@@ -81,7 +81,7 @@ export default class GraffitiClient {
       );
     }
     const response = await (options?.fetch ?? fetch)(url);
-    return parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location, true);
   }
 
   async delete(
@@ -100,7 +100,7 @@ export default class GraffitiClient {
     const response = await (options?.fetch ?? fetch)(url, {
       method: "DELETE",
     });
-    return parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location, false);
   }
 
   async patch(
@@ -137,7 +137,7 @@ export default class GraffitiClient {
       );
     }
     const response = await (options?.fetch ?? fetch)(url, requestInit);
-    return parseGraffitiObjectResponse(response, location);
+    return parseGraffitiObjectResponse(response, location, false);
   }
 
   private list(listType: string) {

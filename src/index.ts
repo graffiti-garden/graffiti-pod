@@ -8,7 +8,7 @@ import type {
 import type { JSONSchema4 } from "json-schema";
 import {
   parseGraffitiObjectResponse,
-  parseJSONListResponse,
+  parseJSONListFetch,
 } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import {
@@ -18,6 +18,7 @@ import {
   encodeJSONBody,
   encodeSkipLimit,
 } from "./header-encoders";
+import { Repeater } from "@repeaterjs/repeater";
 
 export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
@@ -140,23 +141,51 @@ export default class GraffitiClient {
     return parseGraffitiObjectResponse(response, location, false);
   }
 
+  private async *listSinglePod(
+    listType: string,
+    pod: string,
+    options?: Parameters<ReturnType<GraffitiClient["list"]>>[0],
+  ): AsyncGenerator<any, void, void> {
+    const requestInit: RequestInit = { method: "POST" };
+    if (options?.ifModifiedSince) {
+      encodeIfModifiedSince(requestInit, options.ifModifiedSince);
+    }
+    for await (const json of parseJSONListFetch(
+      options?.fetch,
+      pod + "/list-" + listType,
+      requestInit,
+    )) {
+      yield {
+        ...json,
+        pod,
+      };
+    }
+  }
+
   private list(listType: string) {
-    return async function* (
-      pod: string,
-      options?: {
-        fetch?: typeof fetch;
-        ifModifiedSince?: Date;
-      },
-    ): AsyncGenerator<any, void, void> {
-      const requestInit: RequestInit = { method: "POST" };
-      if (options?.ifModifiedSince) {
-        encodeIfModifiedSince(requestInit, options.ifModifiedSince);
+    const this_ = this;
+    return async function* (options?: {
+      webId?: string;
+      pods?: string[];
+      fetch?: typeof fetch;
+      ifModifiedSince?: Date;
+    }): AsyncGenerator<any, void, void> {
+      let pods: string[];
+      if (options?.pods) {
+        pods = options.pods;
+      } else if (options?.webId) {
+        pods = await this_.podManager.getPods(options.webId);
+      } else {
+        yield {
+          error: "Either webId or pods must be provided",
+        };
+        return;
       }
-      const response = await (options?.fetch ?? fetch)(
-        pod + "/list-" + listType,
-        requestInit,
+
+      const iterators = pods.map((pod) =>
+        this_.listSinglePod(listType, pod, options),
       );
-      for await (const json of parseJSONListResponse(response)) {
+      for await (const json of Repeater.merge(iterators)) {
         yield json;
       }
     };
@@ -165,42 +194,52 @@ export default class GraffitiClient {
   listChannels(
     ...args: Parameters<ReturnType<GraffitiClient["list"]>>
   ): AsyncGenerator<
-    {
-      channel: string;
-      count: number;
-      lastModified: Date;
-    },
+    | {
+        channel: string;
+        count: number;
+        lastModified: Date;
+        pod: string;
+      }
+    | {
+        error: string;
+        pod?: string;
+      },
     void,
     void
   > {
+    // TODO: validate the return type
     return this.list("channels")(...args);
   }
 
   listOrphans(
     ...args: Parameters<ReturnType<GraffitiClient["list"]>>
   ): AsyncGenerator<
-    {
-      name: string;
-      tombstone: boolean;
-      lastModified: Date;
-    },
+    | {
+        name: string;
+        tombstone: boolean;
+        lastModified: Date;
+        pod: string;
+      }
+    | {
+        error: string;
+        pod?: string;
+      },
     void,
     void
   > {
+    // TODO: validate the return type
     return this.list("orphans")(...args);
   }
 
-  async *query(
+  private async *querySinglePod(
     channels: string[],
     pod: string,
-    options?: {
-      query?: JSONSchema4;
-      ifModifiedSince?: Date;
-      limit?: number;
-      skip?: number;
-      fetch?: typeof fetch;
-    },
-  ): AsyncGenerator<GraffitiObject, void, void> {
+    options?: Parameters<GraffitiClient["query"]>[1],
+  ): AsyncGenerator<
+    GraffitiObject | { error: string; pod: string },
+    void,
+    void
+  > {
     const requestInit: RequestInit = { method: "POST" };
     encodeChannels(requestInit, channels);
 
@@ -214,19 +253,62 @@ export default class GraffitiClient {
       encodeSkipLimit(requestInit, options.skip, options.limit);
     }
 
-    const response = await (options?.fetch ?? fetch)(pod, requestInit);
-
-    for await (const json of parseJSONListResponse(response)) {
-      const object: GraffitiObject = {
+    for await (const json of parseJSONListFetch(
+      options?.fetch,
+      pod,
+      requestInit,
+    )) {
+      // TODO: validation of the JSON object
+      const output = {
         ...json,
         pod,
       };
 
-      // Only yield the object if the owner has
-      // authorized the graffiti pod to host for them.
-      if (await this.podManager.hasPod(object.webId, object.pod, options)) {
-        yield object;
+      if ("error" in output) {
+        yield output;
+      } else {
+        const object = output as GraffitiObject;
+
+        // Only yield the object if the owner has
+        // authorized the graffiti pod to host for them.
+        if (await this.podManager.hasPod(object.webId, object.pod, options)) {
+          yield object;
+        }
       }
+    }
+  }
+
+  async *query(
+    channels: string[],
+    options?: {
+      pods?: string[];
+      query?: JSONSchema4;
+      ifModifiedSince?: Date;
+      limit?: number;
+      skip?: number;
+      fetch?: typeof fetch;
+    },
+  ): AsyncGenerator<
+    | GraffitiObject
+    | {
+        error: string;
+        pod?: string;
+      },
+    void,
+    void
+  > {
+    if (!options?.pods) {
+      yield {
+        error:
+          "At this time, the DHT is not active and a list of pods must be provided",
+      };
+      return;
+    }
+    const iterators = options.pods.map((pod) =>
+      this.querySinglePod(channels, pod, options),
+    );
+    for await (const object of Repeater.merge(iterators)) {
+      yield object;
     }
   }
 }

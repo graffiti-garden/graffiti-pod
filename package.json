@@ -1,6 +1,6 @@
 {
-  "name": "@graffiti-garden/pod-client",
-  "version": "0.0.0",
+  "name": "@graffiti-garden/client-core",
+  "version": "0.0.2",
   "description": "client for the graffiti pod",
   "type": "module",
   "main": "src/index.ts",
@@ -10,10 +10,8 @@
     "dist"
   ],
   "scripts": {
-    "generate-token": "npx @inrupt/generate-oidc-token",
     "test": "vitest",
     "build": "node esbuild.config.js",
-    "demo": "npm run build && python3 -m http.server",
     "prepublishOnly": "npm test && npm run build"
   },
   "author": "Theia Henderson",
@@ -25,6 +23,7 @@
   },
   "dependencies": {
     "@inrupt/solid-client": "^2.0.1",
+    "@repeaterjs/repeater": "^3.0.6",
     "@types/json-schema": "^7.0.15",
     "fast-json-patch": "^3.1.1"
   }

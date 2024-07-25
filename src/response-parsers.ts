@@ -75,12 +75,18 @@ function parseGraffitiObjectString(s: string): any {
 const decoder = new TextDecoder();
 export async function* parseJSONListResponse(response: Response) {
   if (!response.ok) {
-    throw await parseErrorResponse(response);
+    yield {
+      error: (await parseErrorResponse(response)).message,
+    };
+    return;
   }
 
   const reader = response.body?.getReader();
   if (!reader) {
-    throw new Error("Failed to get a reader from the response body");
+    yield {
+      error: "Failed to get a reader from the response body",
+    };
+    return;
   }
   let buffer = "";
   while (true) {
@@ -103,5 +109,24 @@ export async function* parseJSONListResponse(response: Response) {
   if (buffer) {
     const parsed = parseGraffitiObjectString(buffer);
     if (parsed) yield parsed;
+  }
+}
+
+export async function* parseJSONListFetch(
+  fetch_: typeof fetch | undefined,
+  ...args: Parameters<typeof fetch>
+) {
+  let response: Response;
+  try {
+    response = await (fetch_ ?? fetch)(...args);
+  } catch (e) {
+    yield {
+      error: e.toString(),
+    };
+    return;
+  }
+
+  for await (const parsed of parseJSONListResponse(response)) {
+    yield parsed;
   }
 }

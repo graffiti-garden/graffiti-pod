@@ -4,6 +4,7 @@ import {
   parseEncodedStringArrayHeader,
   parseGraffitiObjectResponse,
   parseJSONListResponse,
+  parseJSONListFetch,
 } from "./response-parsers";
 import { randomLocation, randomString } from "./test-utils";
 
@@ -237,7 +238,18 @@ it("parse list with errors", async () => {
     status: 400,
   });
   const parsing = parseJSONListResponse(response);
-  await expect(parsing.next()).rejects.toMatchObject({
-    message: "error message",
-  });
+  expect(await parsing.next()).toHaveProperty("value.error", "error message");
+  expect(await parsing.next()).toHaveProperty("done", true);
+});
+
+it("parse list fetch with bad uri", async () => {
+  for (const example of [
+    "nonexistant.uriasdfj",
+    "https://example.notfound",
+    "ipfs:alsdkfj",
+  ]) {
+    const iterator = parseJSONListFetch(undefined, example);
+    expect(await iterator.next()).toHaveProperty("value.error");
+    expect(await iterator.next()).toHaveProperty("done", true);
+  }
 });

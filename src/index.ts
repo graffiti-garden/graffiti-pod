@@ -8,7 +8,7 @@ import type {
 import type { JSONSchema4 } from "json-schema";
 import {
   parseGraffitiObjectResponse,
-  parseJSONListFetch,
+  fetchJSONLines,
 } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import {
@@ -150,7 +150,7 @@ export default class GraffitiClient {
     if (options?.ifModifiedSince) {
       encodeIfModifiedSince(requestInit, options.ifModifiedSince);
     }
-    for await (const json of parseJSONListFetch(
+    for await (const json of fetchJSONLines(
       options?.fetch,
       pod + "/list-" + listType,
       requestInit,
@@ -253,11 +253,7 @@ export default class GraffitiClient {
       encodeSkipLimit(requestInit, options.skip, options.limit);
     }
 
-    for await (const json of parseJSONListFetch(
-      options?.fetch,
-      pod,
-      requestInit,
-    )) {
+    for await (const json of fetchJSONLines(options?.fetch, pod, requestInit)) {
       // TODO: validation of the JSON object
       const output = {
         ...json,

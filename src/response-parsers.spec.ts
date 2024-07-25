@@ -3,8 +3,8 @@ import {
   parseErrorResponse,
   parseEncodedStringArrayHeader,
   parseGraffitiObjectResponse,
-  parseJSONListResponse,
-  parseJSONListFetch,
+  parseJSONLinesResponse,
+  fetchJSONLines,
 } from "./response-parsers";
 import { randomLocation, randomString } from "./test-utils";
 
@@ -143,7 +143,7 @@ it("parse basic JSON list", async () => {
       status: 200,
     },
   );
-  const parsed = parseJSONListResponse(response);
+  const parsed = parseJSONLinesResponse(response);
   const first = await parsed.next();
   expect(first.value).toMatchObject(values[0]);
   const second = await parsed.next();
@@ -166,7 +166,7 @@ it("parse json list with newlines", async () => {
       status: 200,
     },
   );
-  const parsed = parseJSONListResponse(response);
+  const parsed = parseJSONLinesResponse(response);
   const first = await parsed.next();
   expect(first.value).toMatchObject(values[0]);
   const second = await parsed.next();
@@ -186,7 +186,7 @@ it("parse json list with bad JSON", async () => {
       status: 200,
     },
   );
-  const parsed = parseJSONListResponse(response);
+  const parsed = parseJSONLinesResponse(response);
   const first = await parsed.next();
   expect(first.value).toMatchObject(good);
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
@@ -196,7 +196,7 @@ it("parse bad bytes", async () => {
   const response = new Response(new Uint8Array([0, 1, 2, 3, 4, 5]), {
     status: 200,
   });
-  const parsed = parseJSONListResponse(response);
+  const parsed = parseJSONLinesResponse(response);
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -208,7 +208,7 @@ it("parse huuuge list", async () => {
       status: 200,
     },
   );
-  const parsed = parseJSONListResponse(response);
+  const parsed = parseJSONLinesResponse(response);
   for (const value of values) {
     const next = await parsed.next();
     expect(next.value).toMatchObject(value);
@@ -226,7 +226,7 @@ it("parse huuuge values", async () => {
       status: 200,
     },
   );
-  const parsed = parseJSONListResponse(response);
+  const parsed = parseJSONLinesResponse(response);
   for (const value of values) {
     const next = await parsed.next();
     expect(next.value).toMatchObject(value);
@@ -237,7 +237,7 @@ it("parse list with errors", async () => {
   const response = new Response("error message", {
     status: 400,
   });
-  const parsing = parseJSONListResponse(response);
+  const parsing = parseJSONLinesResponse(response);
   expect(await parsing.next()).toHaveProperty("value.error", "error message");
   expect(await parsing.next()).toHaveProperty("done", true);
 });
@@ -248,7 +248,7 @@ it("parse list fetch with bad uri", async () => {
     "https://example.notfound",
     "ipfs:alsdkfj",
   ]) {
-    const iterator = parseJSONListFetch(undefined, example);
+    const iterator = fetchJSONLines(undefined, example);
     expect(await iterator.next()).toHaveProperty("value.error");
     expect(await iterator.next()).toHaveProperty("done", true);
   }

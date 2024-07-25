@@ -56,7 +56,7 @@ export async function parseGraffitiObjectResponse(
   };
 }
 
-function parseGraffitiObjectString(s: string): any {
+function parseDatedObjectString(s: string): any {
   // Filter out bad values
   let parsed: any;
   try {
@@ -73,7 +73,8 @@ function parseGraffitiObjectString(s: string): any {
 }
 
 const decoder = new TextDecoder();
-export async function* parseJSONListResponse(response: Response) {
+// See JSON lines: https://jsonlines.org
+export async function* parseJSONLinesResponse(response: Response) {
   if (!response.ok) {
     yield {
       error: (await parseErrorResponse(response)).message,
@@ -97,7 +98,7 @@ export async function* parseJSONListResponse(response: Response) {
       const parts = buffer.split("\n");
       buffer = parts.pop() ?? "";
       for (const part of parts) {
-        const parsed = parseGraffitiObjectString(part);
+        const parsed = parseDatedObjectString(part);
         if (parsed) yield parsed;
       }
     }
@@ -107,12 +108,12 @@ export async function* parseJSONListResponse(response: Response) {
 
   // Clear the buffer
   if (buffer) {
-    const parsed = parseGraffitiObjectString(buffer);
+    const parsed = parseDatedObjectString(buffer);
     if (parsed) yield parsed;
   }
 }
 
-export async function* parseJSONListFetch(
+export async function* fetchJSONLines(
   fetch_: typeof fetch | undefined,
   ...args: Parameters<typeof fetch>
 ) {
@@ -126,7 +127,7 @@ export async function* parseJSONListFetch(
     return;
   }
 
-  for await (const parsed of parseJSONListResponse(response)) {
+  for await (const parsed of parseJSONLinesResponse(response)) {
     yield parsed;
   }
 }

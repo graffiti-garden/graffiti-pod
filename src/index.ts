@@ -145,20 +145,39 @@ export default class GraffitiClient {
     listType: string,
     pod: string,
     options?: Parameters<ReturnType<GraffitiClient["list"]>>[0],
-  ): AsyncGenerator<any, void, void> {
+  ): AsyncGenerator<
+    | {
+        error: false;
+        value: any;
+      }
+    | {
+        error: true;
+        message: string;
+        pod: string;
+      },
+    void,
+    void
+  > {
     const requestInit: RequestInit = { method: "POST" };
     if (options?.ifModifiedSince) {
       encodeIfModifiedSince(requestInit, options.ifModifiedSince);
     }
-    for await (const json of fetchJSONLines(
+    for await (const result of fetchJSONLines(
       options?.fetch,
       pod + "/list-" + listType,
       requestInit,
     )) {
-      yield {
-        ...json,
-        pod,
-      };
+      if (result.error) {
+        yield { ...result, pod };
+      } else {
+        yield {
+          error: false,
+          value: {
+            ...result.value,
+            pod,
+          },
+        };
+      }
     }
   }
 
@@ -169,7 +188,19 @@ export default class GraffitiClient {
       pods?: string[];
       fetch?: typeof fetch;
       ifModifiedSince?: Date;
-    }): AsyncGenerator<any, void, void> {
+    }): AsyncGenerator<
+      | {
+          error: false;
+          value: any;
+        }
+      | {
+          error: true;
+          message: string;
+          pod?: string;
+        },
+      void,
+      void
+    > {
       let pods: string[];
       if (options?.pods) {
         pods = options.pods;
@@ -177,7 +208,8 @@ export default class GraffitiClient {
         pods = await this_.podManager.getPods(options.webId);
       } else {
         yield {
-          error: "Either webId or pods must be provided",
+          error: true,
+          message: "Either webId or pods must be provided",
         };
         return;
       }
@@ -195,13 +227,17 @@ export default class GraffitiClient {
     ...args: Parameters<ReturnType<GraffitiClient["list"]>>
   ): AsyncGenerator<
     | {
-        channel: string;
-        count: number;
-        lastModified: Date;
-        pod: string;
+        error: false;
+        value: {
+          channel: string;
+          count: number;
+          lastModified: Date;
+          pod: string;
+        };
       }
     | {
-        error: string;
+        error: true;
+        message: string;
         pod?: string;
       },
     void,
@@ -215,13 +251,17 @@ export default class GraffitiClient {
     ...args: Parameters<ReturnType<GraffitiClient["list"]>>
   ): AsyncGenerator<
     | {
-        name: string;
-        tombstone: boolean;
-        lastModified: Date;
-        pod: string;
+        error: false;
+        value: {
+          name: string;
+          tombstone: boolean;
+          lastModified: Date;
+          pod: string;
+        };
       }
     | {
-        error: string;
+        error: true;
+        message: string;
         pod?: string;
       },
     void,
@@ -236,7 +276,15 @@ export default class GraffitiClient {
     pod: string,
     options?: Parameters<GraffitiClient["query"]>[1],
   ): AsyncGenerator<
-    GraffitiObject | { error: string; pod: string },
+    | {
+        error: false;
+        value: GraffitiObject;
+      }
+    | {
+        error: true;
+        message: string;
+        pod: string;
+      },
     void,
     void
   > {
@@ -253,22 +301,39 @@ export default class GraffitiClient {
       encodeSkipLimit(requestInit, options.skip, options.limit);
     }
 
-    for await (const json of fetchJSONLines(options?.fetch, pod, requestInit)) {
-      // TODO: validation of the JSON object
-      const output = {
-        ...json,
-        pod,
-      };
-
-      if ("error" in output) {
-        yield output;
+    for await (const result of fetchJSONLines(
+      options?.fetch,
+      pod,
+      requestInit,
+    )) {
+      if (result.error) {
+        yield { ...result, pod };
       } else {
-        const object = output as GraffitiObject;
+        // TODO: validation of the JSON object!!
+        const output = {
+          error: false,
+          value: {
+            ...result.value,
+            pod,
+          },
+        } as const;
 
         // Only yield the object if the owner has
         // authorized the graffiti pod to host for them.
-        if (await this.podManager.hasPod(object.webId, object.pod, options)) {
-          yield object;
+        if (
+          await this.podManager.hasPod(
+            output.value.webId,
+            output.value.pod,
+            options,
+          )
+        ) {
+          yield output;
+        } else {
+          yield {
+            error: true,
+            message: `Pod returned an object not authorized by its owner, ${output.value.webId}`,
+            pod,
+          };
         }
       }
     }
@@ -285,9 +350,13 @@ export default class GraffitiClient {
       fetch?: typeof fetch;
     },
   ): AsyncGenerator<
-    | GraffitiObject
     | {
-        error: string;
+        error: false;
+        value: GraffitiObject;
+      }
+    | {
+        error: true;
+        message: string;
         pod?: string;
       },
     void,
@@ -295,7 +364,8 @@ export default class GraffitiClient {
   > {
     if (!options?.pods) {
       yield {
-        error:
+        error: true,
+        message:
           "At this time, the DHT is not active and a list of pods must be provided",
       };
       return;

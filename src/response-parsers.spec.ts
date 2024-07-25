@@ -135,7 +135,7 @@ it("parse response with error", async () => {
   });
 });
 
-it("parse basic JSON list", async () => {
+it("parse basic JSON lines", async () => {
   const values = [{ value: "hello" }, { value: "world" }];
   const response = new Response(
     values.map((v) => JSON.stringify(v)).join("\n"),
@@ -145,9 +145,13 @@ it("parse basic JSON list", async () => {
   );
   const parsed = parseJSONLinesResponse(response);
   const first = await parsed.next();
-  expect(first.value).toMatchObject(values[0]);
+  expect(first.value?.error).toBe(false);
+  if (first.value?.error) return;
+  expect(first.value?.value).toMatchObject(values[0]);
   const second = await parsed.next();
-  expect(second.value).toMatchObject(values[1]);
+  expect(second.value?.error).toBe(false);
+  if (second.value?.error) return;
+  expect(second.value?.value).toMatchObject(values[1]);
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -168,9 +172,11 @@ it("parse json list with newlines", async () => {
   );
   const parsed = parseJSONLinesResponse(response);
   const first = await parsed.next();
-  expect(first.value).toMatchObject(values[0]);
+  if (first.value?.error) throw new Error();
+  expect(first.value?.value).toMatchObject(values[0]);
   const second = await parsed.next();
-  expect(second.value).toMatchObject(values[1]);
+  if (second.value?.error) throw new Error();
+  expect(second.value?.value).toMatchObject(values[1]);
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -180,7 +186,7 @@ it("parse json list with bad JSON", async () => {
     "not json" +
       "\n" +
       JSON.stringify(good) +
-      "\n\n\n" +
+      "\n\n" +
       JSON.stringify(["an", "array"]),
     {
       status: 200,
@@ -188,7 +194,15 @@ it("parse json list with bad JSON", async () => {
   );
   const parsed = parseJSONLinesResponse(response);
   const first = await parsed.next();
-  expect(first.value).toMatchObject(good);
+  expect(first.value?.error).toBe(true);
+  const second = await parsed.next();
+  expect(second.value?.error).toBe(false);
+  if (second.value?.error) throw new Error();
+  expect(second.value?.value).toMatchObject(good);
+  const third = await parsed.next();
+  expect(third.value?.error).toBe(true);
+  const fourth = await parsed.next();
+  expect(fourth.value?.error).toBe(true);
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -197,6 +211,8 @@ it("parse bad bytes", async () => {
     status: 200,
   });
   const parsed = parseJSONLinesResponse(response);
+  const first = await parsed.next();
+  expect(first.value?.error).toBe(true);
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -211,7 +227,8 @@ it("parse huuuge list", async () => {
   const parsed = parseJSONLinesResponse(response);
   for (const value of values) {
     const next = await parsed.next();
-    expect(next.value).toMatchObject(value);
+    if (next.value?.error) throw new Error();
+    expect(next.value?.value).toMatchObject(value);
   }
   await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
@@ -229,8 +246,10 @@ it("parse huuuge values", async () => {
   const parsed = parseJSONLinesResponse(response);
   for (const value of values) {
     const next = await parsed.next();
-    expect(next.value).toMatchObject(value);
+    if (next.value?.error) throw new Error();
+    expect(next.value?.value).toMatchObject(value);
   }
+  await expect(parsed.next()).resolves.toHaveProperty("done", true);
 });
 
 it("parse list with errors", async () => {
@@ -238,7 +257,9 @@ it("parse list with errors", async () => {
     status: 400,
   });
   const parsing = parseJSONLinesResponse(response);
-  expect(await parsing.next()).toHaveProperty("value.error", "error message");
+  const result = await parsing.next();
+  expect(result.value?.error).toBe(true);
+  expect(result.value).toHaveProperty("message", "error message");
   expect(await parsing.next()).toHaveProperty("done", true);
 });
 
@@ -249,7 +270,8 @@ it("parse list fetch with bad uri", async () => {
     "ipfs:alsdkfj",
   ]) {
     const iterator = fetchJSONLines(undefined, example);
-    expect(await iterator.next()).toHaveProperty("value.error");
+    const result = await iterator.next();
+    expect(result.value?.error).toBe(true);
     expect(await iterator.next()).toHaveProperty("done", true);
   }
 });

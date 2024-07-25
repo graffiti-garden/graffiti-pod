@@ -138,7 +138,8 @@ it("query single", async () => {
   const iterator = graffiti.query(channels, { fetch, pods: [homePod] });
   const result = await iterator.next();
   expect(result.done).toBe(false);
-  expect((result.value as GraffitiObject).value).toEqual(value);
+  if (result.value?.error) throw new Error();
+  expect(result.value?.value.value).toEqual(value);
   const result2 = await iterator.next();
   expect(result2.done).toBe(true);
 });
@@ -164,11 +165,12 @@ it("query with good and bad pods", async () => {
     results.push(await iterator.next());
   }
   results.forEach((result) => expect(result.done).toBe(false));
-  const errors = results.filter((result) => "error" in result.value!);
+  const errors = results.filter((result) => result.value?.error);
   expect(errors.length).toBe(3);
-  const notErrors = results.filter((result) => !("error" in result.value!));
+  const notErrors = results.filter((result) => !result.value?.error);
   expect(notErrors.length).toBe(1);
-  expect((notErrors[0].value as GraffitiObject).value).toEqual(value);
+  if (notErrors[0].value?.error) throw new Error();
+  expect(notErrors[0].value?.value.value).toEqual(value);
   expect(await iterator.next()).toHaveProperty("done", true);
 });
 
@@ -184,9 +186,11 @@ it("query multiple", async () => {
   });
   const iterator = graffiti.query(channels, { fetch, pods: [homePod] });
   const result1 = await iterator.next();
-  expect((result1.value as GraffitiObject).value).toEqual(values[0]);
+  if (result1.value?.error) throw new Error();
+  expect(result1.value?.value.value).toEqual(values[0]);
   const result2 = await iterator.next();
-  expect((result2.value as GraffitiObject).value).toEqual(values[1]);
+  if (result2.value?.error) throw new Error();
+  expect(result2.value?.value.value).toEqual(values[1]);
   const result3 = await iterator.next();
   expect(result3.done).toBe(true);
 });
@@ -201,7 +205,8 @@ it("invalid query", async () => {
     },
   });
   const result = await iterator.next();
-  expect(result.value).toHaveProperty("error");
+  expect(result.value?.error).toBe(true);
+  expect(await iterator.next()).toHaveProperty("done", true);
 });
 
 it("query with actual query", async () => {
@@ -224,7 +229,8 @@ it("query with actual query", async () => {
     },
   });
   const result1 = await iterator.next();
-  expect((result1.value as GraffitiObject).value).toEqual(values[0]);
+  if (result1.value?.error) throw new Error();
+  expect(result1.value?.value.value).toEqual(values[0]);
   const result2 = await iterator.next();
   expect(result2.done).toBe(true);
 });
@@ -248,7 +254,8 @@ it("query with last modified", async () => {
     ifModifiedSince: new Date(lastModified.getTime() + 1),
   });
   const result1 = await iterator.next();
-  expect((result1.value as GraffitiObject).value).toEqual(value);
+  if (result1.value?.error) throw new Error();
+  expect(result1.value?.value.value).toEqual(value);
   const result2 = await iterator.next();
   expect(result2.done).toBe(true);
 });
@@ -270,7 +277,8 @@ it("query with skip", async () => {
     });
     for (let i = 0; i < 5; i++) {
       const result = await iterator.next();
-      expect((result.value as GraffitiObject).value).toEqual({ index: i + 5 });
+      if (result.value?.error) throw new Error();
+      expect(result.value?.value.value).toEqual({ index: i + 5 });
     }
     const result = await iterator.next();
     expect(result.done).toBe(true);
@@ -284,7 +292,8 @@ it("query with skip", async () => {
     });
     for (let i = 0; i < 10; i++) {
       const result = await iterator.next();
-      expect((result.value as GraffitiObject).value).toEqual({ index: i });
+      if (result.value?.error) throw new Error();
+      expect(result.value?.value.value).toEqual({ index: i });
     }
     const result = await iterator.next();
     expect(result.done).toBe(true);
@@ -343,7 +352,8 @@ it("query with limit", async () => {
   });
   for (let i = 0; i < 5; i++) {
     const result = await iterator.next();
-    expect((result.value as GraffitiObject).value).toEqual({ index: i });
+    if (result.value?.error) throw new Error();
+    expect(result.value?.value.value).toEqual({ index: i });
   }
   const result = await iterator.next();
   expect(result.done).toBe(true);
@@ -366,7 +376,8 @@ it("query with skip and limit", async () => {
   });
   for (let i = 0; i < 5; i++) {
     const result = await iterator.next();
-    expect((result.value as GraffitiObject).value).toEqual({ index: i + 3 });
+    if (result.value?.error) throw new Error();
+    expect(result.value?.value.value).toEqual({ index: i + 3 });
   }
   const result = await iterator.next();
   expect(result.done).toBe(true);
@@ -377,8 +388,8 @@ it("list orphans", async () => {
   const existingOrphans: string[] = [];
   const orphanIterator1 = graffiti.listOrphans({ fetch, webId });
   for await (const orphan of orphanIterator1) {
-    if ("error" in orphan) continue;
-    existingOrphans.push(orphan.name);
+    if (orphan.error) continue;
+    existingOrphans.push(orphan.value.name);
   }
   const location = randomLocation();
   await graffiti.put({ value: randomValue(), channels: [] }, location, {
@@ -387,10 +398,10 @@ it("list orphans", async () => {
   const orphanIterator2 = graffiti.listOrphans({ fetch, webId });
   let newOrphans: string[] = [];
   for await (const orphan of orphanIterator2) {
-    if ("error" in orphan) continue;
-    newOrphans.push(orphan.name);
-    if (orphan.name === location.name) {
-      expect(orphan.tombstone).toBe(false);
+    if (orphan.error) continue;
+    newOrphans.push(orphan.value.name);
+    if (orphan.value.name === location.name) {
+      expect(orphan.value.tombstone).toBe(false);
     }
   }
   newOrphans = newOrphans.filter((orphan) => !existingOrphans.includes(orphan));
@@ -399,20 +410,21 @@ it("list orphans", async () => {
 
 it("list orphans with ifModifiedSince", async () => {
   const graffiti = new GraffitiClient();
-  const now = new Date();
   const location = randomLocation();
   await graffiti.put({ value: randomValue(), channels: [] }, location, {
     fetch,
   });
+  const gotten = await graffiti.get(location, { fetch });
+  const now = gotten.lastModified;
   const orphanIterator = graffiti.listOrphans({
     fetch,
     webId,
     ifModifiedSince: now,
   });
   const result = await orphanIterator.next();
-  if ("error" in result.value!) throw new Error(result.value.error);
-  expect(result.value?.name).toEqual(location.name);
-  expect(result.value?.lastModified.getTime()).toBeGreaterThan(now.getTime());
+  if (result.value?.error) throw new Error();
+  expect(result.value?.value.name).toEqual(location.name);
+  expect(result.value?.value.lastModified.getTime()).toEqual(now.getTime());
   await expect(orphanIterator.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -437,10 +449,12 @@ it("deleted orphan", async () => {
     ifModifiedSince: now,
   });
   const result = await orphanIterator.next();
-  if ("error" in result.value!) throw new Error(result.value.error);
-  expect(result.value?.name).toEqual(location.name);
-  expect(result.value?.tombstone).toBe(true);
-  expect(result.value?.lastModified.getTime()).toBeGreaterThan(now.getTime());
+  if (result.value?.error) throw new Error();
+  expect(result.value?.value.name).toEqual(location.name);
+  expect(result.value?.value.tombstone).toBe(true);
+  expect(result.value?.value.lastModified.getTime()).toBeGreaterThan(
+    now.getTime(),
+  );
   await expect(orphanIterator.next()).resolves.toHaveProperty("done", true);
 });
 
@@ -449,8 +463,8 @@ it("list channels", async () => {
   const existingChannels: Map<string, number> = new Map();
   const channelIterator1 = graffiti.listChannels({ fetch, webId });
   for await (const channel of channelIterator1) {
-    if ("error" in channel) throw new Error(channel.error);
-    existingChannels.set(channel.channel, channel.count);
+    if (channel.error) continue;
+    existingChannels.set(channel.value.channel, channel.value.count);
   }
 
   const channels = [randomString(), randomString(), randomString()];
@@ -477,8 +491,8 @@ it("list channels", async () => {
   const channelIterator2 = graffiti.listChannels({ fetch, webId });
   let newChannels: Map<string, number> = new Map();
   for await (const channel of channelIterator2) {
-    if ("error" in channel) throw new Error(channel.error);
-    newChannels.set(channel.channel, channel.count);
+    if (channel.error) continue;
+    newChannels.set(channel.value.channel, channel.value.count);
   }
   // Filter out existing channels
   newChannels = new Map(
@@ -508,8 +522,8 @@ it("list channels with ifModifiedSince", async () => {
   });
   let newChannels: Map<string, number> = new Map();
   for await (const channel of channelIterator) {
-    if ("error" in channel) throw new Error(channel.error);
-    newChannels.set(channel.channel, channel.count);
+    if (channel.error) continue;
+    newChannels.set(channel.value.channel, channel.value.count);
   }
   expect(newChannels.size).toBe(3);
   expect(newChannels.get(channels[0])).toBe(3);
@@ -540,8 +554,8 @@ it("list channels with deleted channel", async () => {
   });
   let newChannels: Map<string, number> = new Map();
   for await (const channel of channelIterator) {
-    if ("error" in channel) throw new Error(channel.error);
-    newChannels.set(channel.channel, channel.count);
+    if (channel.error) continue;
+    newChannels.set(channel.value.channel, channel.value.count);
   }
   expect(newChannels.size).toBe(3);
   expect(newChannels.get(channels[0])).toBe(0);
@@ -569,7 +583,8 @@ it("list with good and bad pods", async () => {
     results.push(await channelIterator.next());
   }
 
-  results.forEach((result) => expect(result.value).toHaveProperty("error"));
+  results.forEach((result) => expect(result.value?.error).toBe(true));
+  // @ts-ignore
   const pods = results.map((result) => result.value?.pod);
   expect(pods.sort()).toEqual(badPods.sort());
 

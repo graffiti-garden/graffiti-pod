@@ -56,28 +56,65 @@ export async function parseGraffitiObjectResponse(
   };
 }
 
-function parseDatedObjectString(s: string): any {
+function parseDatedObjectString(s: string):
+  | {
+      error: true;
+      message: string;
+    }
+  | {
+      error: false;
+      value: any;
+    } {
   // Filter out bad values
   let parsed: any;
   try {
     parsed = JSON.parse(s);
   } catch (e) {
-    return;
+    console.log("hi");
+    console.log(e);
+    return {
+      error: true,
+      message: "Cannot parse JSON from pod",
+    };
   }
-  if (typeof parsed !== "object" || Array.isArray(parsed)) return;
+  if (typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {
+      error: true,
+      message: "Expected an object from pod",
+    };
+  }
 
-  return {
+  const value = {
     ...parsed,
     lastModified: new Date(parsed.lastModified ?? NaN),
+  };
+
+  return {
+    error: false,
+    value,
   };
 }
 
 const decoder = new TextDecoder();
 // See JSON lines: https://jsonlines.org
-export async function* parseJSONLinesResponse(response: Response) {
+export async function* parseJSONLinesResponse(
+  response: Response,
+): AsyncGenerator<
+  | {
+      error: true;
+      message: string;
+    }
+  | {
+      error: false;
+      value: any;
+    },
+  void,
+  void
+> {
   if (!response.ok) {
     yield {
-      error: (await parseErrorResponse(response)).message,
+      error: true,
+      message: (await parseErrorResponse(response)).message,
     };
     return;
   }
@@ -85,7 +122,8 @@ export async function* parseJSONLinesResponse(response: Response) {
   const reader = response.body?.getReader();
   if (!reader) {
     yield {
-      error: "Failed to get a reader from the response body",
+      error: true,
+      message: "Failed to get a reader from the response body",
     };
     return;
   }
@@ -98,8 +136,7 @@ export async function* parseJSONLinesResponse(response: Response) {
       const parts = buffer.split("\n");
       buffer = parts.pop() ?? "";
       for (const part of parts) {
-        const parsed = parseDatedObjectString(part);
-        if (parsed) yield parsed;
+        yield parseDatedObjectString(part);
       }
     }
 
@@ -108,21 +145,32 @@ export async function* parseJSONLinesResponse(response: Response) {
 
   // Clear the buffer
   if (buffer) {
-    const parsed = parseDatedObjectString(buffer);
-    if (parsed) yield parsed;
+    yield parseDatedObjectString(buffer);
   }
 }
 
 export async function* fetchJSONLines(
   fetch_: typeof fetch | undefined,
   ...args: Parameters<typeof fetch>
-) {
+): AsyncGenerator<
+  | {
+      error: true;
+      message: string;
+    }
+  | {
+      error: false;
+      value: any;
+    },
+  void,
+  void
+> {
   let response: Response;
   try {
     response = await (fetch_ ?? fetch)(...args);
   } catch (e) {
     yield {
-      error: e.toString(),
+      error: true,
+      message: e.toString(),
     };
     return;
   }

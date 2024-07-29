@@ -12,6 +12,7 @@ const headers = [
   "Acess-Control-List",
   "Channels",
   "Last-Modified",
+  "If-Modified-Since",
   "Range",
 ];
 

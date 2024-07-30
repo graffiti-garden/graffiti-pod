@@ -41,6 +41,9 @@ export async function parseGraffitiObjectResponse(
     value = null;
   }
   return {
+    webId: location.webId,
+    pod: location.pod,
+    name: location.name,
     tombstone: !isGet,
     value,
     channels: parseEncodedStringArrayHeader(
@@ -52,7 +55,6 @@ export async function parseGraffitiObjectResponse(
       undefined,
     ),
     lastModified: new Date(response.headers.get("last-modified") ?? NaN),
-    ...location,
   };
 }
 
@@ -70,8 +72,6 @@ function parseDatedObjectString(s: string):
   try {
     parsed = JSON.parse(s);
   } catch (e) {
-    console.log("hi");
-    console.log(e);
     return {
       error: true,
       message: "Cannot parse JSON from pod",
@@ -150,7 +150,7 @@ export async function* parseJSONLinesResponse(
 }
 
 export async function* fetchJSONLines(
-  fetch_: typeof fetch | undefined,
+  fetch_: typeof fetch,
   ...args: Parameters<typeof fetch>
 ): AsyncGenerator<
   | {
@@ -166,7 +166,7 @@ export async function* fetchJSONLines(
 > {
   let response: Response;
   try {
-    response = await (fetch_ ?? fetch)(...args);
+    response = await fetch_(...args);
   } catch (e) {
     yield {
       error: true,

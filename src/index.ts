@@ -25,6 +25,34 @@ export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 export default class GraffitiClient {
   readonly podManager = new PodManager();
 
+  webId: undefined | string = undefined;
+  homePod: undefined | string = undefined;
+  fetch: typeof fetch = fetch;
+
+  setFetch(fetch_?: typeof fetch) {
+    this.fetch = fetch_ ?? fetch;
+  }
+
+  setWebId(webId?: string) {
+    this.webId = webId;
+  }
+
+  setHomePod(pod?: string) {
+    this.homePod = pod;
+  }
+
+  private whichFetch(options?: { fetch?: typeof fetch }) {
+    return options?.fetch ?? this.fetch;
+  }
+
+  private whichWebId(webId?: string) {
+    return webId ?? this.webId;
+  }
+
+  private whichPod(pod?: string) {
+    return pod ?? this.homePod;
+  }
+
   locationToUrl(location: GraffitiLocation): string {
     return locationToUrl(location);
   }
@@ -34,20 +62,63 @@ export default class GraffitiClient {
 
   async put(
     object: GraffitiLocalObject,
-    location: GraffitiLocation,
+    location?: GraffitiLocation,
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    url: string,
+    partialLocation: {
+      name?: string;
+      pod?: string;
+      webId?: string;
+    },
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    locationOrUrl: GraffitiLocation | string,
+    url?: string,
+    options?: { fetch?: typeof fetch },
+  ): Promise<GraffitiObject>;
+  async put(
+    object: GraffitiLocalObject,
+    locationOrUrl?: string | { name?: string; pod?: string; webId?: string },
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
-    const { location, url } = parseLocationOrUrl(locationOrUrl);
+    let location: GraffitiLocation;
+    let url: string;
+
+    if (typeof locationOrUrl === "string") {
+      const parsed = parseLocationOrUrl(locationOrUrl);
+      location = parsed.location;
+      url = parsed.url;
+    } else {
+      let { webId, name, pod } = locationOrUrl ?? {};
+      webId = this.whichWebId(webId);
+      if (!webId) {
+        throw new Error(
+          "no webId provided. either use setWebId to provide a global webId or provide a webId in the location",
+        );
+      }
+      pod = this.whichPod(pod);
+      if (!pod) {
+        throw new Error(
+          "no pod provided. either use setHomePod to provide a global pod or provide a pod in the location",
+        );
+      }
+
+      if (!name) {
+        // Generate a random name if none is provided
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        name = Array.from(bytes)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+
+      location = { webId, pod, name };
+      url = this.locationToUrl(location);
+    }
+
     await this.podManager.addPod(location.webId, location.pod, options);
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
@@ -57,7 +128,7 @@ export default class GraffitiClient {
     if (object["acl"]) {
       encodeACL(requestInit, object["acl"]);
     }
-    const response = await (options?.fetch ?? fetch)(url, requestInit);
+    const response = await this.whichFetch(options)(url, requestInit);
     return parseGraffitiObjectResponse(response, location, false);
   }
 
@@ -81,7 +152,7 @@ export default class GraffitiClient {
         `The Graffiti pod ${location.pod} is not registered with the WebID ${location.webId}`,
       );
     }
-    const response = await (options?.fetch ?? fetch)(url);
+    const response = await this.whichFetch(options)(url);
     return parseGraffitiObjectResponse(response, location, true);
   }
 
@@ -98,7 +169,7 @@ export default class GraffitiClient {
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
-    const response = await (options?.fetch ?? fetch)(url, {
+    const response = await this.whichFetch(options)(url, {
       method: "DELETE",
     });
     return parseGraffitiObjectResponse(response, location, false);
@@ -137,7 +208,7 @@ export default class GraffitiClient {
         patch.acl.map((p) => JSON.stringify(p)),
       );
     }
-    const response = await (options?.fetch ?? fetch)(url, requestInit);
+    const response = await this.whichFetch(options)(url, requestInit);
     return parseGraffitiObjectResponse(response, location, false);
   }
 
@@ -163,7 +234,7 @@ export default class GraffitiClient {
       encodeIfModifiedSince(requestInit, options.ifModifiedSince);
     }
     for await (const result of fetchJSONLines(
-      options?.fetch,
+      this.whichFetch(options),
       pod + "/list-" + listType,
       requestInit,
     )) {
@@ -204,14 +275,17 @@ export default class GraffitiClient {
       let pods: string[];
       if (options?.pods) {
         pods = options.pods;
-      } else if (options?.webId) {
-        pods = await this_.podManager.getPods(options.webId);
       } else {
-        yield {
-          error: true,
-          message: "Either webId or pods must be provided",
-        };
-        return;
+        const webId = this_.whichWebId(options?.webId);
+        if (webId) {
+          pods = await this_.podManager.getPods(webId);
+        } else {
+          yield {
+            error: true,
+            message: "Either webId or pods must be provided",
+          };
+          return;
+        }
       }
 
       const iterators = pods.map((pod) =>
@@ -302,7 +376,7 @@ export default class GraffitiClient {
     }
 
     for await (const result of fetchJSONLines(
-      options?.fetch,
+      this.whichFetch(options),
       pod,
       requestInit,
     )) {
@@ -362,7 +436,8 @@ export default class GraffitiClient {
     void,
     void
   > {
-    if (!options?.pods) {
+    const pods = options?.pods;
+    if (!pods) {
       yield {
         error: true,
         message:
@@ -370,7 +445,7 @@ export default class GraffitiClient {
       };
       return;
     }
-    const iterators = options.pods.map((pod) =>
+    const iterators = pods.map((pod) =>
       this.querySinglePod(channels, pod, options),
     );
     for await (const object of Repeater.merge(iterators)) {

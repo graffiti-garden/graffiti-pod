@@ -6,7 +6,7 @@ import {
   parseJSONLinesResponse,
   fetchJSONLines,
 } from "./response-parsers";
-import { randomLocation, randomString } from "./test-utils";
+import { randomLocation, randomString, randomValue } from "./test-utils";
 
 it("parse an error string", async () => {
   const message = "error message";
@@ -122,6 +122,23 @@ it("parse no channels or acl or value or timestamp", async () => {
   expect(parsed.acl).toEqual(undefined);
   expect(parsed.lastModified.getTime()).toBeNaN();
   expect(parsed).toMatchObject(location);
+});
+
+it("parse response with extra fields in location", async () => {
+  const value = randomValue();
+  const response = new Response(JSON.stringify(value), {
+    status: 200,
+  });
+  const location = {
+    ...randomLocation(randomString(), randomString()),
+    value: { not: "what you expect" },
+    some: "extra fields",
+  };
+
+  const parsed = await parseGraffitiObjectResponse(response, location, true);
+  expect(parsed.tombstone).toBe(false);
+  expect(parsed.value).toEqual(value);
+  expect(parsed).not.toHaveProperty("some");
 });
 
 it("parse response with error", async () => {
@@ -269,7 +286,7 @@ it("parse list fetch with bad uri", async () => {
     "https://example.notfound",
     "ipfs:alsdkfj",
   ]) {
-    const iterator = fetchJSONLines(undefined, example);
+    const iterator = fetchJSONLines(fetch, example);
     const result = await iterator.next();
     expect(result.value?.error).toBe(true);
     expect(await iterator.next()).toHaveProperty("done", true);

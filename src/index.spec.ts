@@ -590,3 +590,20 @@ it("list with good and bad pods", async () => {
 
   expect(await channelIterator.next()).toHaveProperty("done", true);
 });
+
+it("put with random name", async () => {
+  const graffiti = new GraffitiClient();
+  const value = randomValue();
+
+  graffiti.setWebId(webId);
+  graffiti.setFetch(fetch);
+  graffiti.setHomePod(homePod);
+
+  const putted = await graffiti.put({ value, channels: [], acl: [] });
+  expect(putted.webId).toBe(webId);
+  expect(putted.pod).toBe(homePod);
+  expect(putted.name).toHaveLength(32);
+
+  const gotten = await graffiti.get(putted);
+  expect(gotten.value).toEqual(value);
+});

@@ -508,13 +508,20 @@ it("list channels", async () => {
 
 it("list channels with ifModifiedSince", async () => {
   const graffiti = new GraffitiClient();
-  const now = new Date();
   const channels = [randomString(), randomString(), randomString()];
+  let firstPutted: GraffitiObject;
   for (let i = 0; i < 3; i++) {
-    await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
-      fetch,
-    });
+    const putted = await graffiti.put(
+      { value: { index: i }, channels },
+      randomLocation(),
+      {
+        fetch,
+      },
+    );
+    if (i === 0) firstPutted = putted;
   }
+  const gotten = await graffiti.get(firstPutted!, { fetch });
+  const now = gotten.lastModified;
   const channelIterator = graffiti.listChannels({
     webId,
     fetch,
@@ -533,12 +540,17 @@ it("list channels with ifModifiedSince", async () => {
 
 it("list channels with deleted channel", async () => {
   const graffiti = new GraffitiClient();
-  const now = new Date();
   const channels = [randomString(), randomString(), randomString()];
   const location = randomLocation();
-  await graffiti.put({ value: { index: 0 }, channels }, location, {
-    fetch,
-  });
+  const first = await graffiti.put(
+    { value: { index: 0 }, channels },
+    location,
+    {
+      fetch,
+    },
+  );
+  const gotten = await graffiti.get(first, { fetch });
+  const now = gotten.lastModified;
   await graffiti.put(
     { value: { index: 1 }, channels: channels.slice(1) },
     location,
@@ -572,10 +584,18 @@ it("list with good and bad pods", async () => {
     "https://alsdkfjkjdkfjdkjfk.askdfjkdjk",
   ];
 
+  const putted = await graffiti.put(
+    { value: randomValue(), channels: [] },
+    randomLocation(),
+    { fetch },
+  );
+  const deleted = await graffiti.delete(putted, { fetch });
+  const now = deleted.lastModified;
+
   const channelIterator = graffiti.listChannels({
     pods: [...badPods, homePod],
     fetch,
-    ifModifiedSince: new Date(),
+    ifModifiedSince: now,
   });
 
   const results: Awaited<ReturnType<typeof channelIterator.next>>[] = [];

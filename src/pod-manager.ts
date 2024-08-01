@@ -17,13 +17,24 @@ const POD_PREDICATE = "https://graffiti.garden/ns/graffitiPod";
 export default class PodManager {
   private readonly podCache = new Map<string, string[]>();
 
+  fetch: typeof fetch = fetch;
+  setFetch(fetch_?: typeof fetch) {
+    this.fetch = fetch_ ?? fetch;
+  }
+  private whichOptions(options?: { fetch?: typeof fetch }) {
+    return {
+      ...options,
+      fetch: options?.fetch ?? this.fetch,
+    };
+  }
+
   private async getProfile(
     webId: string,
     options?: {
       fetch?: typeof fetch;
     },
   ) {
-    const profiles = await getProfileAll(webId, options);
+    const profiles = await getProfileAll(webId, this.whichOptions(options));
     const profile = profiles.altProfileAll[0] ?? profiles.webIdProfile;
     const profileThing =
       getThing(profile, webId) ??
@@ -41,7 +52,11 @@ export default class PodManager {
     },
   ) {
     const profileNew = setThing(profile, profileThing);
-    await saveSolidDatasetAt(getSourceUrl(profile), profileNew, options);
+    await saveSolidDatasetAt(
+      getSourceUrl(profile),
+      profileNew,
+      this.whichOptions(options),
+    );
     await universalAccess.setPublicAccess(
       getSourceUrl(profileNew),
       {
@@ -51,7 +66,7 @@ export default class PodManager {
         controlRead: false,
         controlWrite: false,
       },
-      options,
+      this.whichOptions(options),
     );
   }
 

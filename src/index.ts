@@ -31,6 +31,7 @@ export default class GraffitiClient {
 
   setFetch(fetch_?: typeof fetch) {
     this.fetch = fetch_ ?? fetch;
+    this.podManager.setFetch(fetch_);
   }
 
   setWebId(webId?: string) {

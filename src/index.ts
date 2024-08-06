@@ -437,7 +437,27 @@ export default class GraffitiClient {
     void,
     void
   > {
-    const pods = options?.pods;
+    let pods = options?.pods;
+
+    // Try adding pods
+    if (!pods) {
+      const myPods = new Set<string>();
+
+      const homePod = this.whichPod();
+      if (homePod) myPods.add(homePod);
+
+      const webId = this.whichWebId();
+      if (webId) {
+        (await this.podManager.getPods(webId)).forEach((pod) =>
+          myPods.add(pod),
+        );
+      }
+
+      if (myPods.size > 0) {
+        pods = Array.from(myPods);
+      }
+    }
+
     if (!pods) {
       yield {
         error: true,

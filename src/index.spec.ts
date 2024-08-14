@@ -32,6 +32,7 @@ it("Put, replace, delete", async () => {
   expect(gotten.name).toEqual(location.name);
   expect(gotten.webId).toEqual(location.webId);
   expect(gotten.pod).toEqual(location.pod);
+  expect(gotten.lastModified.getTime()).toBe(previous.lastModified.getTime());
 
   // Replace it and get again
   const newValue = {
@@ -44,13 +45,23 @@ it("Put, replace, delete", async () => {
       fetch,
     },
   );
-  expect(beforeReplaced).toEqual({ ...gotten, tombstone: true });
+  expect(beforeReplaced.value).toEqual(value);
+  expect(beforeReplaced.tombstone).toBe(true);
+  expect(beforeReplaced).toMatchObject(location);
   const afterReplaced = await graffiti.get(location);
   expect(afterReplaced.value).toEqual(newValue);
+  expect(afterReplaced.lastModified.getTime()).toEqual(
+    beforeReplaced.lastModified.getTime(),
+  );
 
   // Finally, delete
   const beforeDeleted = await graffiti.delete(location, { fetch });
-  expect(beforeDeleted).toEqual({ ...afterReplaced, tombstone: true });
+  expect(beforeDeleted.value).toEqual(newValue);
+  expect(beforeDeleted.tombstone).toBe(true);
+  expect(beforeDeleted).toMatchObject(location);
+  expect(beforeDeleted.lastModified.getTime()).toBeGreaterThan(
+    afterReplaced.lastModified.getTime(),
+  );
   await expect(graffiti.get(location)).rejects.toThrow();
 });
 
@@ -91,11 +102,15 @@ it("patch value", async () => {
     value: [{ op: "replace", path: "/something", value: "goodbye, world~ c:" }],
   };
   const beforePatched = await graffiti.patch(patch, location, { fetch });
-  expect(beforePatched).toEqual({ ...put, tombstone: true });
+  expect(beforePatched.value).toEqual(put.value);
+  expect(beforePatched.tombstone).toBe(true);
   const gotten = await graffiti.get(location);
   expect(gotten.value).toEqual({
     something: "goodbye, world~ c:",
   });
+  expect(beforePatched.lastModified.getTime()).toBe(
+    gotten.lastModified.getTime(),
+  );
   await graffiti.delete(location, { fetch });
 });
 

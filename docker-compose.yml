@@ -1,5 +1,8 @@
 version: "3.8"
 
+volumes:
+  graffitidata:
+
 services:
   graffiti-pod:
     container_name: graffiti-pod
@@ -16,5 +19,6 @@ services:
     command: "--bind_ip_all --replSet rs0 --quiet --logpath /dev/null --setParameter logLevel=0"
     volumes:
       - ./config/mongo:/docker-entrypoint-initdb.d/
+      - graffitidata:/data/db
     extra_hosts:
       - "mongo:127.0.0.1"

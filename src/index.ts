@@ -19,11 +19,13 @@ import {
   encodeSkipLimit,
 } from "./header-encoders";
 import { Repeater } from "@repeaterjs/repeater";
+import LocalChanges from "./local-changes";
 
 export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
 export default class GraffitiClient {
   readonly podManager = new PodManager();
+  private readonly localChanges = new LocalChanges();
 
   webId: undefined | string = undefined;
   homePod: undefined | string = undefined;
@@ -130,7 +132,13 @@ export default class GraffitiClient {
       encodeACL(requestInit, object["acl"]);
     }
     const response = await this.whichFetch(options)(url, requestInit);
-    return parseGraffitiObjectResponse(response, location, false);
+    const oldObject = await parseGraffitiObjectResponse(
+      response,
+      location,
+      false,
+    );
+    this.localChanges.put(object, oldObject);
+    return oldObject;
   }
 
   async get(
@@ -173,7 +181,13 @@ export default class GraffitiClient {
     const response = await this.whichFetch(options)(url, {
       method: "DELETE",
     });
-    return parseGraffitiObjectResponse(response, location, false);
+    const oldObject = await parseGraffitiObjectResponse(
+      response,
+      location,
+      false,
+    );
+    this.localChanges.delete(oldObject);
+    return oldObject;
   }
 
   async patch(
@@ -210,7 +224,13 @@ export default class GraffitiClient {
       );
     }
     const response = await this.whichFetch(options)(url, requestInit);
-    return parseGraffitiObjectResponse(response, location, false);
+    const oldObject = await parseGraffitiObjectResponse(
+      response,
+      location,
+      false,
+    );
+    this.localChanges.patch(patch, oldObject);
+    return oldObject;
   }
 
   private async *listSinglePod(
@@ -411,6 +431,18 @@ export default class GraffitiClient {
           };
         }
       }
+    }
+  }
+
+  async *queryLocalChanges(
+    channels: string[],
+    options?: {
+      query?: JSONSchema4;
+      ifModifiedSince?: Date;
+    },
+  ): AsyncGenerator<GraffitiObject, void, void> {
+    for await (const object of this.localChanges.query(channels, options)) {
+      yield object;
     }
   }
 

@@ -34,3 +34,13 @@ export function randomValue() {
     [randomString()]: randomString(),
   };
 }
+
+export function randomGraffitiObject() {
+  return {
+    ...randomLocation(randomString(), randomString()),
+    value: randomValue(),
+    channels: [randomString(), randomString()],
+    tombstone: false,
+    lastModified: new Date(),
+  };
+}

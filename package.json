@@ -1,6 +1,6 @@
 {
   "name": "@graffiti-garden/client-core",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "client for the graffiti pod",
   "type": "module",
   "main": "src/index.ts",
@@ -25,6 +25,7 @@
     "@inrupt/solid-client": "^2.0.1",
     "@repeaterjs/repeater": "^3.0.6",
     "@types/json-schema": "^7.0.15",
+    "ajv": "^8.17.1",
     "fast-json-patch": "^3.1.1"
   }
 }

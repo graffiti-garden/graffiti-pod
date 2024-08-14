@@ -212,10 +212,13 @@ describe("StoreService", () => {
   it("put replace", async () => {
     const go = randomGraffitiObject();
     const deleted = await service.putObject(go);
-    expect(deleted).toBeNull();
+    expect(deleted.webId).toBe("nobody");
     const result1 = await service.getObject(go.webId, go.name, go.webId);
     expect(result1?.value).toStrictEqual(go.value);
     expect(result1?.channels).toStrictEqual(go.channels);
+    expect(result1?.lastModified.getTime()).toBe(
+      deleted?.lastModified.getTime(),
+    );
     const go2 = randomGraffitiObject();
     go2.name = go.name;
     go2.webId = go.webId;
@@ -681,7 +684,7 @@ describe("StoreService", () => {
 
     it("query for replaced content", async () => {
       const nothing = await service.putObject(go);
-      expect(nothing).toBeNull();
+      expect(nothing.webId).toBe("nobody");
       const go2 = randomGraffitiObject();
       go2.channels = go.channels;
       go2.webId = go.webId;
@@ -689,7 +692,9 @@ describe("StoreService", () => {
       const replaced = await service.putObject(go2);
       expect(replaced?.value).toEqual(go.value);
       expect(replaced?.tombstone).toBe(true);
-      expect(replaced?.lastModified).toBeDefined();
+      expect(replaced?.lastModified.getTime()).toBeGreaterThan(
+        nothing.lastModified.getTime(),
+      );
       const iterator = service.queryObjects(go.channels, null, {
         ifModifiedSince: new Date(replaced?.lastModified.getTime()!),
         query: {

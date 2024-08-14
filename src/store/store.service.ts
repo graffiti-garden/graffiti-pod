@@ -41,24 +41,25 @@ export class StoreService {
     put: boolean = false,
   ): Object | void {
     if (!object) {
-      if (put) {
-        response.status(201);
-        return;
-      } else {
-        throw new NotFoundException(
-          "Cannot GET object - either it does not exist or you do not have access to it.",
-        );
-      }
-    } else {
-      if (selfWebId === object.webId) {
-        if (object.acl) {
-          response.header("access-control-list", encodeHeaderArray(object.acl));
-        }
-        response.header("channels", encodeHeaderArray(object.channels));
-      }
-      response.header("last-modified", object.lastModified.toISOString());
-      return object.value;
+      throw new NotFoundException(
+        "Cannot GET object - either it does not exist or you do not have access to it.",
+      );
     }
+
+    if (put && object.webId === "nobody") {
+      response.status(201);
+    }
+
+    if (selfWebId === object.webId) {
+      if (object.acl) {
+        response.header("access-control-list", encodeHeaderArray(object.acl));
+      }
+      response.header("channels", encodeHeaderArray(object.channels));
+    }
+
+    response.header("last-modified", object.lastModified.toISOString());
+
+    return object.value;
   }
 
   async deleteObject(webId: string, name: string, modifiedBefore?: Date) {
@@ -118,11 +119,23 @@ export class StoreService {
     }
 
     // Apply tombstones to other objects
-    return await this.deleteObject(
+    const output = await this.deleteObject(
       object.webId,
       object.name,
       putObject.lastModified,
     );
+    if (output) {
+      return output;
+    } else {
+      // Return the lastModified date via a dummy
+      // with a webId that will be caught for the
+      // correct "201" response
+      const dummy = new this.storeModel();
+      dummy.lastModified = putObject.lastModified;
+      dummy.tombstone = true;
+      dummy.webId = "nobody";
+      return dummy;
+    }
   }
 
   async patchObject(

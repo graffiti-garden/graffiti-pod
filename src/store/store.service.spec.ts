@@ -204,6 +204,7 @@ describe("StoreService", () => {
     await service.putObject(go);
     const deleted = await service.deleteObject(go.webId, go.name);
     expect(deleted?.value).toStrictEqual(go.value);
+    expect(deleted?.tombstone).toBe(true);
     const result = await service.getObject(go.webId, go.name, go.webId);
     expect(result).toBeNull();
   });
@@ -220,12 +221,20 @@ describe("StoreService", () => {
     go2.webId = go.webId;
     go2.channels = [randomString()];
     const deleted2 = await service.putObject(go2);
-    expect(deleted2).toStrictEqual(result1);
+    expect(deleted2?.tombstone).toBe(true);
+    expect(deleted2?.value).toStrictEqual(go.value);
+    expect(deleted2?.channels).toStrictEqual(go.channels);
+    expect(deleted2?.lastModified.getTime()).toBeGreaterThan(
+      result1?.lastModified.getTime()!,
+    );
     const result2 = await service.getObject(go.webId, go.name, go.webId);
     expect(result2?.value).toStrictEqual(go2.value);
     expect(result2?.channels).toStrictEqual(go2.channels);
     expect(result2?.lastModified.getTime()).toBeGreaterThan(
       result1?.lastModified.getTime()!,
+    );
+    expect(result2?.lastModified.getTime()).toBe(
+      deleted2?.lastModified.getTime(),
     );
   });
 
@@ -679,9 +688,10 @@ describe("StoreService", () => {
       go2.name = go.name;
       const replaced = await service.putObject(go2);
       expect(replaced?.value).toEqual(go.value);
+      expect(replaced?.tombstone).toBe(true);
       expect(replaced?.lastModified).toBeDefined();
       const iterator = service.queryObjects(go.channels, null, {
-        ifModifiedSince: new Date(replaced?.lastModified.getTime()! + 1),
+        ifModifiedSince: new Date(replaced?.lastModified.getTime()!),
         query: {
           properties: {
             value: {
@@ -694,6 +704,9 @@ describe("StoreService", () => {
       expect(result.value?.name).toEqual(go.name);
       expect(result.value?.tombstone).toBe(true);
       expect(result.value?.value).toBeUndefined();
+      expect(result.value?.lastModified.getTime()).toBe(
+        replaced?.lastModified.getTime(),
+      );
       expect(await iterator.next()).toHaveProperty("done", true);
       const iterator2 = service.queryObjects(go.channels, null);
       const result2 = await iterator2.next();

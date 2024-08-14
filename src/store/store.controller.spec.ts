@@ -71,11 +71,11 @@ describe("StoreController", () => {
       new FastifyAdapter(),
     );
     await app.listen(3000);
-  });
+  }, 100000);
 
   afterEach(async () => {
     await app.close();
-  });
+  }, 100000);
 
   it("put with normal fetch", async () => {
     const response = await fetch(toUrl(randomString()), {

@@ -80,6 +80,7 @@ export class StoreService {
       {
         sort: { lastModified: 1 },
         timestamps: !modifiedBefore,
+        new: true,
       },
     );
   }

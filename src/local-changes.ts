@@ -16,7 +16,9 @@ type LocalChangeEvent = CustomEvent<{
 
 export default class LocalChanges {
   readonly changes = new EventTarget();
-  private ajv = new Ajv();
+  private ajv = new Ajv({
+    strictTypes: false,
+  });
 
   matchObject(
     object: GraffitiObject,

@@ -14,7 +14,7 @@ import {
 
 const POD_PREDICATE = "https://graffiti.garden/ns/graffitiPod";
 
-export default class PodManager {
+export default class Delegation {
   private readonly podCache = new Map<string, string[]>();
 
   fetch: typeof fetch = fetch;

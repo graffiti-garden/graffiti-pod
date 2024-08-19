@@ -1,4 +1,4 @@
-import PodManager from "./pod-manager";
+import Delegation from "./delegation";
 import type {
   GraffitiLocalObject,
   GraffitiLocation,
@@ -24,7 +24,7 @@ import LocalChanges from "./local-changes";
 export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
 export default class GraffitiClient {
-  readonly podManager = new PodManager();
+  readonly delegation = new Delegation();
   private readonly localChanges = new LocalChanges();
 
   webId: undefined | string = undefined;
@@ -33,7 +33,7 @@ export default class GraffitiClient {
 
   setFetch(fetch_?: typeof fetch) {
     this.fetch = fetch_ ?? fetch;
-    this.podManager.setFetch(fetch_);
+    this.delegation.setFetch(fetch_);
   }
 
   setWebId(webId?: string) {
@@ -122,7 +122,7 @@ export default class GraffitiClient {
       url = this.locationToUrl(location);
     }
 
-    await this.podManager.addPod(location.webId, location.pod, options);
+    await this.delegation.addPod(location.webId, location.pod, options);
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
     if (object["channels"]) {
@@ -155,7 +155,7 @@ export default class GraffitiClient {
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     if (
-      !(await this.podManager.hasPod(location.webId, location.pod, options))
+      !(await this.delegation.hasPod(location.webId, location.pod, options))
     ) {
       throw new Error(
         `The Graffiti pod ${location.pod} is not registered with the WebID ${location.webId}`,
@@ -299,7 +299,7 @@ export default class GraffitiClient {
       } else {
         const webId = this_.whichWebId(options?.webId);
         if (webId) {
-          pods = await this_.podManager.getPods(webId);
+          pods = await this_.delegation.getPods(webId);
         } else {
           yield {
             error: true,
@@ -416,7 +416,7 @@ export default class GraffitiClient {
         // Only yield the object if the owner has
         // authorized the graffiti pod to host for them.
         if (
-          await this.podManager.hasPod(
+          await this.delegation.hasPod(
             output.value.webId,
             output.value.pod,
             options,
@@ -480,7 +480,7 @@ export default class GraffitiClient {
 
       const webId = this.whichWebId();
       if (webId) {
-        (await this.podManager.getPods(webId)).forEach((pod) =>
+        (await this.delegation.getPods(webId)).forEach((pod) =>
           myPods.add(pod),
         );
       }

@@ -168,11 +168,15 @@ export async function* fetchJSONLines(
   try {
     response = await fetch_(...args);
   } catch (e) {
-    yield {
-      error: true,
-      message: e.toString(),
-    };
-    return;
+    if (e instanceof Error) {
+      yield {
+        error: true,
+        message: e.toString(),
+      };
+      return;
+    } else {
+      throw e;
+    }
   }
 
   for await (const parsed of parseJSONLinesResponse(response)) {

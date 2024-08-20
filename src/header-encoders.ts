@@ -1,8 +1,8 @@
 function addHeader(requestInit: RequestInit, key: string, value: string): void {
-  if (!requestInit.headers) {
-    requestInit.headers = {};
+  if (!requestInit.headers || !(requestInit.headers instanceof Headers)) {
+    requestInit.headers = new Headers();
   }
-  requestInit.headers[key] = value;
+  requestInit.headers.set(key, value);
 }
 
 function encodeStringArray(

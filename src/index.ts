@@ -241,6 +241,7 @@ export default class GraffitiClient {
     if (options?.ifModifiedSince) {
       encodeIfModifiedSince(requestInit, options.ifModifiedSince);
     }
+    pod = pod.replace(/\/+$/, "");
     for await (const result of fetchJSONLines(
       this.whichFetch(options),
       pod + "/list-" + listType,
@@ -372,6 +373,7 @@ export default class GraffitiClient {
   > {
     const requestInit: RequestInit = {};
 
+    pod = pod.replace(/\/+$/, "");
     const url = encodeQueryParams(pod + "/discover", {
       channels,
       schema: options?.schema,

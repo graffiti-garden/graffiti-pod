@@ -9,7 +9,7 @@ import GraffitiClient, { GraffitiObject, GraffitiPatch } from ".";
 
 const { fetch, webId } = await solidLogin();
 
-const homePod = "http://localhost:3000";
+const homePod = "http://localhost:3000//";
 const randomLocation = () => randomGenericLocation(webId, homePod);
 
 it("Put, replace, delete", async () => {
@@ -401,7 +401,11 @@ it("query with skip and limit", async () => {
 it("list orphans", async () => {
   const graffiti = new GraffitiClient();
   const existingOrphans: string[] = [];
-  const orphanIterator1 = graffiti.listOrphans({ fetch, webId });
+  const orphanIterator1 = graffiti.listOrphans({
+    fetch,
+    webId,
+    pods: [homePod],
+  });
   for await (const orphan of orphanIterator1) {
     if (orphan.error) continue;
     existingOrphans.push(orphan.value.name);
@@ -410,7 +414,11 @@ it("list orphans", async () => {
   await graffiti.put({ value: randomValue(), channels: [] }, location, {
     fetch,
   });
-  const orphanIterator2 = graffiti.listOrphans({ fetch, webId });
+  const orphanIterator2 = graffiti.listOrphans({
+    fetch,
+    webId,
+    pods: [homePod],
+  });
   let newOrphans: string[] = [];
   for await (const orphan of orphanIterator2) {
     if (orphan.error) continue;
@@ -478,7 +486,11 @@ it("deleted orphan", async () => {
 it("list channels", async () => {
   const graffiti = new GraffitiClient();
   const existingChannels: Map<string, number> = new Map();
-  const channelIterator1 = graffiti.listChannels({ fetch, webId });
+  const channelIterator1 = graffiti.listChannels({
+    fetch,
+    webId,
+    pods: [homePod],
+  });
   for await (const channel of channelIterator1) {
     if (channel.error) continue;
     existingChannels.set(channel.value.channel, channel.value.count);
@@ -505,7 +517,11 @@ it("list channels", async () => {
     { fetch },
   );
 
-  const channelIterator2 = graffiti.listChannels({ fetch, webId });
+  const channelIterator2 = graffiti.listChannels({
+    fetch,
+    webId,
+    pods: [homePod],
+  });
   let newChannels: Map<string, number> = new Map();
   for await (const channel of channelIterator2) {
     if (channel.error) continue;

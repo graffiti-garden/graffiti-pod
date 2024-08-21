@@ -1,21 +1,31 @@
 import {
-  encodeHeaderArray,
-  decodeHeaderArray,
+  encodeURIArray,
+  decodeURIArray,
   rangeToSkipLimit,
   parseDateString,
+  parseQueryParamFromPath,
 } from "./params.utils";
 
 it("encode and decode empty array", () => {
-  const encoded = encodeHeaderArray([]);
-  const decoded = decodeHeaderArray(encoded);
+  const encoded = encodeURIArray([]);
+  const decoded = decodeURIArray(encoded);
   expect(decoded).toStrictEqual([]);
 });
 
-it("encode and decode header arrays", () => {
+it("encode and decode URI arrays", () => {
   const headers = ["asdf", "🎨dk,fj", "👀,/laskdk,kdjf"];
-  const encoded = encodeHeaderArray(headers);
-  const decoded = decodeHeaderArray(encoded);
+  const encoded = encodeURIArray(headers);
+  const decoded = decodeURIArray(encoded);
   expect(decoded).toStrictEqual(headers);
+});
+
+it("parse query param from path", () => {
+  const path = "/posts?red=123&blue=456&&black=&green=789";
+  expect(parseQueryParamFromPath("red", path)).toBe("123");
+  expect(parseQueryParamFromPath("blue", path)).toBe("456");
+  expect(parseQueryParamFromPath("black", path)).toBe("");
+  expect(parseQueryParamFromPath("green", path)).toBe("789");
+  expect(parseQueryParamFromPath("yellow", path)).toBeUndefined();
 });
 
 it("no skip/limit", () => {

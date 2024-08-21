@@ -14,7 +14,7 @@ import { JsonPatchError, applyPatch } from "fast-json-patch";
 import type { Operation } from "fast-json-patch";
 import { FastifyReply } from "fastify";
 import type { JSONSchema4 } from "json-schema";
-import { encodeHeaderArray } from "../params/params.utils";
+import { encodeURIArray } from "../params/params.utils";
 
 @Injectable()
 export class StoreService {
@@ -52,9 +52,9 @@ export class StoreService {
 
     if (selfWebId === object.webId) {
       if (object.acl) {
-        response.header("access-control-list", encodeHeaderArray(object.acl));
+        response.header("access-control-list", encodeURIArray(object.acl));
       }
-      response.header("channels", encodeHeaderArray(object.channels));
+      response.header("channels", encodeURIArray(object.channels));
     }
 
     response.header("last-modified", object.lastModified.toISOString());

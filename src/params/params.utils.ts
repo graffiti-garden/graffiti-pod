@@ -2,27 +2,33 @@ import { BadRequestException, createParamDecorator } from "@nestjs/common";
 import type { ExecutionContext } from "@nestjs/common";
 import type { IncomingMessage } from "http";
 
-export function encodeHeaderArray(headerArray: string[]): string {
+export function encodeURIArray(headerArray: string[]): string {
   return headerArray.map(encodeURIComponent).join(",");
 }
 
-export function decodeHeaderArray(headerString: string): string[] {
+export function decodeURIArray(headerString: string): string[] {
   return headerString
     .split(",")
     .filter((s) => s)
     .map(decodeURIComponent);
 }
 
-export function headerArrayDecorator<T>(name: string, default_: T) {
+export function parseQueryParamFromPath(
+  name: string,
+  path: string | undefined,
+): string | undefined {
+  return path
+    ?.split("?")[1]
+    ?.split("&")
+    .find((p) => p.startsWith(name + "="))
+    ?.split("=")[1];
+}
+
+export function queryArrayDecorator<T>(name: string, default_: T) {
   return createParamDecorator((_, ctx: ExecutionContext): string[] | T => {
     const request = ctx.switchToHttp().getRequest() as IncomingMessage;
-    if (name in request.headers) {
-      const header = request.headers[name];
-      if (typeof header === "string") {
-        return decodeHeaderArray(header);
-      }
-    }
-    return default_;
+    const param = parseQueryParamFromPath(name, request.url);
+    return typeof param === "string" ? decodeURIArray(param) : default_;
   });
 }
 

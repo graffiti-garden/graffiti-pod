@@ -6,8 +6,6 @@ import {
   Body,
   Response,
   Header,
-  Headers,
-  Post,
   BadRequestException,
   StreamableFile,
 } from "@nestjs/common";
@@ -21,12 +19,16 @@ import { StoreSchema } from "./store.schema";
 import { StoreService } from "./store.service";
 import { FastifyReply } from "fastify";
 import { Operation } from "fast-json-patch";
-import { rangeToSkipLimit, parseDateString } from "../params/params.utils";
+import { IfModifiedSince } from "../params/if-modified-since.decorator";
+import { Range } from "../params/range.decorator";
+import { Schema } from "../params/schema.decorator";
 
 const CONTENT_TYPE = [
   "Content-Type",
   "application/json; charset=utf-8",
 ] as const;
+
+const CACHE_CONTROL = ["Cache-Control", "private, max-age=300"] as const;
 
 @Controller()
 export class StoreController {
@@ -52,53 +54,55 @@ export class StoreController {
     });
   }
 
-  @Post()
+  @Get("discover")
+  @Header(...CACHE_CONTROL)
+  @Header("Vary", "Authorization, If-Modified-Since, Range")
   async queryObjects(
-    @Body() query: any,
     @WebId() selfWebId: string | null,
     @Channels() channels: string[],
-    @Headers("if-modified-since") ifModifiedSinceString?: string,
-    @Headers("range") range?: string,
+    @Range() range: { skip?: number; limit?: number },
+    @Schema() schema?: any,
+    @IfModifiedSince() ifModifiedSince?: Date,
   ) {
-    const { skip, limit } = rangeToSkipLimit(range);
-    const ifModifiedSince = parseDateString(ifModifiedSinceString);
     const iterator = this.storeService.queryObjects(channels, selfWebId, {
-      query,
+      query: schema,
       ifModifiedSince,
-      skip,
-      limit,
+      skip: range.skip,
+      limit: range.limit,
     });
     return this.iteratorToStreamableFile(iterator);
   }
 
-  @Post("list-channels")
+  @Get("list-channels")
+  @Header(...CACHE_CONTROL)
+  @Header("Vary", "Authorization, If-Modified-Since")
   async listChannels(
     @WebId() selfWebId: string | null,
-    @Headers("if-modified-since") ifModifiedSinceString?: string,
+    @IfModifiedSince() ifModifiedSince?: Date,
   ) {
     this.storeService.validateWebId(selfWebId, selfWebId);
-    const ifModifiedSince = parseDateString(ifModifiedSinceString);
     const iterator = this.storeService.listChannels(selfWebId, {
       ifModifiedSince,
     });
     return this.iteratorToStreamableFile(iterator);
   }
 
-  @Post("list-orphans")
+  @Get("list-orphans")
+  @Header(...CACHE_CONTROL)
+  @Header("Vary", "Authorization, If-Modified-Since")
   async listOrphans(
     @WebId() selfWebId: string | null,
-    @Headers("if-modified-since") ifModifiedSinceString?: string,
+    @IfModifiedSince() ifModifiedSince?: Date,
   ) {
     this.storeService.validateWebId(selfWebId, selfWebId);
-    const ifModifiedSince = parseDateString(ifModifiedSinceString);
     const iterator = this.storeService.listOrphans(selfWebId, {
       ifModifiedSince,
     });
     return this.iteratorToStreamableFile(iterator);
   }
 
-  @Header(...CONTENT_TYPE)
   @Put(":webId/:name")
+  @Header(...CONTENT_TYPE)
   async putObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -122,8 +126,8 @@ export class StoreController {
     return this.storeService.returnObject(putted, selfWebId, response, true);
   }
 
-  @Header(...CONTENT_TYPE)
   @Delete(":webId/:name")
+  @Header(...CONTENT_TYPE)
   async deleteObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -135,8 +139,8 @@ export class StoreController {
     return this.storeService.returnObject(deleted, selfWebId, response);
   }
 
-  @Header(...CONTENT_TYPE)
   @Patch(":webId/:name")
+  @Header(...CONTENT_TYPE)
   async patchObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
@@ -171,8 +175,10 @@ export class StoreController {
     return this.storeService.returnObject(patched, selfWebId, response);
   }
 
-  @Header(...CONTENT_TYPE)
   @Get(":webId/:name")
+  @Header(...CONTENT_TYPE)
+  @Header(...CACHE_CONTROL)
+  @Header("Vary", "Authorization")
   async getObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,

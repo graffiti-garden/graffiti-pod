@@ -9,7 +9,7 @@ import {
 } from "../test/utils";
 import { HttpException } from "@nestjs/common";
 import { Operation } from "fast-json-patch";
-import { encodeHeaderArray } from "../params/params.utils";
+import { encodeURIArray } from "../params/params.utils";
 
 describe("StoreService", () => {
   let service: StoreService;
@@ -56,9 +56,9 @@ describe("StoreService", () => {
     const response = responseMock();
     const returned = service.returnObject(go, go.webId, response);
     expect(returned).toStrictEqual(go.value);
-    expect(response.getHeader("Channels")).toBe(encodeHeaderArray(go.channels));
+    expect(response.getHeader("Channels")).toBe(encodeURIArray(go.channels));
     expect(response.getHeader("Access-Control-List")).toBe(
-      encodeHeaderArray(go.acl),
+      encodeURIArray(go.acl),
     );
     expect(response.getHeader("Last-Modified")).toBe(
       go.lastModified.toISOString(),

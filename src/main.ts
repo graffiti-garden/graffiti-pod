@@ -14,6 +14,8 @@ const headers = [
   "Last-Modified",
   "If-Modified-Since",
   "Range",
+  "Cache-Control",
+  "Vary",
 ];
 
 async function bootstrap() {
@@ -23,6 +25,7 @@ async function bootstrap() {
     methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
     allowedHeaders: headers,
     exposedHeaders: headers,
+    maxAge: 3600, // 1 hour
   });
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

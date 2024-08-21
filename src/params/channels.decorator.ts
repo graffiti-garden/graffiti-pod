@@ -1,3 +1,3 @@
-import { headerArrayDecorator } from "./params.utils";
+import { queryArrayDecorator } from "./params.utils";
 
-export const Channels = headerArrayDecorator<[]>("channels", []);
+export const Channels = queryArrayDecorator<[]>("channels", []);

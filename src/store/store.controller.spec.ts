@@ -6,7 +6,7 @@ import {
 import { randomString, solidLogin } from "../test/utils";
 import { StoreModule } from "./store.module";
 import { RootMongooseModule } from "../app.module";
-import { encodeHeaderArray } from "../params/params.utils";
+import { encodeURIArray } from "../params/params.utils";
 import { Operation } from "fast-json-patch";
 
 describe("StoreController", () => {
@@ -26,22 +26,28 @@ describe("StoreController", () => {
     method: string,
     options?: {
       body?: any;
+      schema?: any;
       channels?: string[];
       acl?: string[];
       ifModifiedSince?: string;
       range?: string;
     },
   ) {
+    url += "?";
     const init: RequestInit = { method, headers: {} };
     if (options?.body) {
       init.headers!["Content-Type"] = "application/json";
       init.body = JSON.stringify(options.body);
     }
     if (options?.channels) {
-      init.headers!["Channels"] = encodeHeaderArray(options.channels);
+      url += "channels=" + encodeURIArray(options.channels) + "&";
     }
     if (options?.acl) {
-      init.headers!["Access-Control-List"] = encodeHeaderArray(options.acl);
+      url += "access-control-list=" + encodeURIArray(options.acl) + "&";
+    }
+    if (options?.schema) {
+      url +=
+        "schema=" + encodeURIComponent(JSON.stringify(options.schema)) + "&";
     }
     if (options?.ifModifiedSince) {
       init.headers!["If-Modified-Since"] = options.ifModifiedSince;
@@ -106,7 +112,7 @@ describe("StoreController", () => {
     expect(responseGetAuth.status).toBe(200);
     expect(responseGetAuth.headers.get("access-control-list")).toBeNull();
     expect(responseGetAuth.headers.get("channels")).toBe(
-      encodeHeaderArray(channels),
+      encodeURIArray(channels),
     );
     expect(responseGetAuth.headers.get("content-type")).toBe(
       "application/json; charset=utf-8",
@@ -150,7 +156,7 @@ describe("StoreController", () => {
     const responseAuth = await solidFetch(url);
     expect(responseAuth.status).toBe(200);
     expect(responseAuth.headers.get("access-control-list")).toBe(
-      encodeHeaderArray(acl),
+      encodeURIArray(acl),
     );
     expect(responseAuth.headers.get("channels")).toBe("");
 
@@ -270,10 +276,10 @@ describe("StoreController", () => {
   });
 
   it("query empty", async () => {
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels: [],
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const output = await response.text();
     expect(output.length).toBe(0);
   });
@@ -283,11 +289,10 @@ describe("StoreController", () => {
     const channels = [randomString(), randomString()];
     const url = toUrl(randomString());
     await request(solidFetch, url, "PUT", { body: value, channels });
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
-      body: {},
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const output = await response.json();
     expect(output.value).toEqual(value);
     expect(output.channels.sort()).toEqual(channels.sort());
@@ -310,10 +315,10 @@ describe("StoreController", () => {
     });
 
     const channels = [channels1[0]];
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const output = await response.text();
     const parts = output.split("\n");
     expect(parts.length).toBe(2);
@@ -343,18 +348,18 @@ describe("StoreController", () => {
 
     expect(lastModified1.getTime()).toBeLessThan(lastModified2.getTime());
 
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
       ifModifiedSince: new Date(lastModified1.getTime() + 1).toISOString(),
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     // Output only contains the last value
     const output = await response.json();
     expect(output.value).toEqual(value);
   });
 
   it("bad ifModifiedSince", async () => {
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       ifModifiedSince: "alskdjflk",
     });
     expect(response.status).toBe(400);
@@ -368,11 +373,11 @@ describe("StoreController", () => {
         channels,
       });
     }
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
       range: "=4-",
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const output = await response.text();
     const parts = output.split("\n");
     expect(parts.length).toBe(6);
@@ -391,11 +396,11 @@ describe("StoreController", () => {
         channels,
       });
     }
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
       range: "=-4",
     });
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const output = await response.text();
     const parts = output.split("\n");
     expect(parts.length).toBe(5);
@@ -414,16 +419,62 @@ describe("StoreController", () => {
         channels,
       });
     }
-    const response = await request(solidFetch, baseUrl, "POST", {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
       range: "=2-7",
     });
 
-    expect(response.status).toBe(201);
+    expect(response.status).toBe(200);
     const output = await response.text();
     const parts = output.split("\n");
     expect(parts.length).toBe(6);
     let index = 2;
+    for (const part of parts) {
+      expect(JSON.parse(part).value.index).toBe(index);
+      index++;
+    }
+  });
+
+  it("query with bad schema", async () => {
+    const response = await solidFetch(baseUrl + "/discover?schema=alskdjflk");
+    expect(response.status).toBe(400);
+  });
+
+  it("query with schema", async () => {
+    const channels = [randomString(), randomString()];
+    for (let i = 0; i < 10; i++) {
+      await request(solidFetch, toUrl(randomString()), "PUT", {
+        body: { index: i },
+        channels,
+      });
+    }
+
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
+      channels,
+      schema: {
+        // JSON Schema query
+        properties: {
+          value: {
+            properties: {
+              index: {
+                type: "number",
+                minimum: 3,
+                maximum: 8,
+              },
+              "random👻otherfield": {
+                enum: ["👻", "👽", "`,\\\n,dkjs🤘"],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.ok).toBe(true);
+    const output = await response.text();
+    const parts = output.split("\n");
+    expect(parts.length).toBe(6);
+    let index = 3;
     for (const part of parts) {
       expect(JSON.parse(part).value.index).toBe(index);
       index++;
@@ -441,7 +492,7 @@ describe("StoreController", () => {
     const response = await request(
       solidFetch,
       baseUrl + "/list-channels",
-      "POST",
+      "GET",
     );
     expect(response.ok).toBe(true);
     const results = (await response.text())
@@ -464,7 +515,7 @@ describe("StoreController", () => {
     const response2 = await request(
       solidFetch,
       baseUrl + "/list-channels",
-      "POST",
+      "GET",
       {
         ifModifiedSince: now.toISOString(),
       },
@@ -484,7 +535,7 @@ describe("StoreController", () => {
     const response = await request(
       solidFetch,
       baseUrl + "/list-orphans",
-      "POST",
+      "GET",
     );
     expect(response.ok).toBe(true);
     const results = (await response.text())
@@ -505,7 +556,7 @@ describe("StoreController", () => {
     const response2 = await request(
       solidFetch,
       baseUrl + "/list-orphans",
-      "POST",
+      "GET",
       {
         ifModifiedSince: new Date(
           new Date(relevant[0].lastModified).getTime() + 1,

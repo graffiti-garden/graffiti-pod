@@ -9,7 +9,7 @@ import GraffitiClient, { GraffitiObject, GraffitiPatch } from ".";
 
 const { fetch, webId } = await solidLogin();
 
-const homePod = "https://pod.graffiti.garden";
+const homePod = "http://localhost:3000";
 const randomLocation = () => randomGenericLocation(webId, homePod);
 
 it("Put, replace, delete", async () => {
@@ -137,7 +137,7 @@ it("query with no pods", async () => {
   const channels = [randomString(), randomString()];
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator = graffiti.query(channels, { fetch, pods: [] });
+  const iterator = graffiti.discover(channels, { fetch, pods: [] });
   const result = await iterator.next();
   expect(result.done).toBe(true);
 });
@@ -150,7 +150,7 @@ it("query single", async () => {
 
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator = graffiti.query(channels, { fetch, pods: [homePod] });
+  const iterator = graffiti.discover(channels, { fetch, pods: [homePod] });
   const result = await iterator.next();
   expect(result.done).toBe(false);
   if (result.value?.error) throw new Error();
@@ -166,7 +166,7 @@ it("query with good and bad pods", async () => {
   const channels = [randomString(), randomString()];
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator = graffiti.query(channels, {
+  const iterator = graffiti.discover(channels, {
     fetch,
     pods: [
       "https://google.com",
@@ -199,7 +199,7 @@ it("query multiple", async () => {
   await graffiti.put({ value: values[1], channels }, randomLocation(), {
     fetch,
   });
-  const iterator = graffiti.query(channels, { fetch, pods: [homePod] });
+  const iterator = graffiti.discover(channels, { fetch, pods: [homePod] });
   const result1 = await iterator.next();
   if (result1.value?.error) throw new Error();
   expect(result1.value?.value.value).toEqual(values[0]);
@@ -212,10 +212,10 @@ it("query multiple", async () => {
 
 it("invalid query", async () => {
   const graffiti = new GraffitiClient();
-  const iterator = graffiti.query([], {
+  const iterator = graffiti.discover([], {
     pods: [homePod],
     fetch,
-    query: {
+    schema: {
       asdf: {},
     },
   });
@@ -232,10 +232,10 @@ it("query with actual query", async () => {
     await graffiti.put({ value, channels }, randomLocation(), { fetch });
   }
   // Query for the first value
-  const iterator = graffiti.query(channels, {
+  const iterator = graffiti.discover(channels, {
     pods: [homePod],
     fetch,
-    query: {
+    schema: {
       properties: {
         value: {
           required: Object.keys(values[0]),
@@ -263,7 +263,7 @@ it("query with last modified", async () => {
   const lastModified2 = (await graffiti.get(location2)).lastModified;
   expect(lastModified.getTime()).toBeLessThan(lastModified2.getTime());
 
-  const iterator = graffiti.query(channels, {
+  const iterator = graffiti.discover(channels, {
     pods: [homePod],
     fetch,
     ifModifiedSince: new Date(lastModified.getTime() + 1),
@@ -285,7 +285,7 @@ it("query with skip", async () => {
   }
 
   {
-    const iterator = graffiti.query(channels, {
+    const iterator = graffiti.discover(channels, {
       pods: [homePod],
       fetch,
       skip: 5,
@@ -300,7 +300,7 @@ it("query with skip", async () => {
   }
 
   {
-    const iterator = graffiti.query(channels, {
+    const iterator = graffiti.discover(channels, {
       pods: [homePod],
       fetch,
       skip: 0,
@@ -315,7 +315,7 @@ it("query with skip", async () => {
   }
 
   {
-    const iterator = graffiti.query(channels, {
+    const iterator = graffiti.discover(channels, {
       pods: [homePod],
       fetch,
       skip: 10,
@@ -327,7 +327,7 @@ it("query with skip", async () => {
 
 it("bad skip", async () => {
   const graffiti = new GraffitiClient();
-  const iterator = graffiti.query([], {
+  const iterator = graffiti.discover([], {
     pods: [homePod],
     fetch,
     skip: -10,
@@ -337,13 +337,13 @@ it("bad skip", async () => {
 
 it("bad limit", async () => {
   const graffiti = new GraffitiClient();
-  const iterator = graffiti.query([], {
+  const iterator = graffiti.discover([], {
     pods: [homePod],
     fetch,
     limit: -10,
   });
   await expect(iterator.next()).rejects.toThrow();
-  const iterator2 = graffiti.query([], {
+  const iterator2 = graffiti.discover([], {
     pods: [homePod],
     fetch,
     limit: 0,
@@ -360,7 +360,7 @@ it("query with limit", async () => {
     });
   }
 
-  const iterator = graffiti.query(channels, {
+  const iterator = graffiti.discover(channels, {
     pods: [homePod],
     fetch,
     limit: 5,
@@ -383,7 +383,7 @@ it("query with skip and limit", async () => {
     });
   }
 
-  const iterator = graffiti.query(channels, {
+  const iterator = graffiti.discover(channels, {
     pods: [homePod],
     fetch,
     skip: 3,
@@ -435,6 +435,7 @@ it("list orphans with ifModifiedSince", async () => {
     fetch,
     webId,
     ifModifiedSince: now,
+    pods: [homePod],
   });
   const result = await orphanIterator.next();
   if (result.value?.error) throw new Error();
@@ -462,6 +463,7 @@ it("deleted orphan", async () => {
     fetch,
     webId,
     ifModifiedSince: now,
+    pods: [homePod],
   });
   const result = await orphanIterator.next();
   if (result.value?.error) throw new Error();

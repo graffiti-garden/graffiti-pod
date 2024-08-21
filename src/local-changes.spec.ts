@@ -79,11 +79,11 @@ it("match validation function", () => {
 it("put", async () => {
   const localChanges = new LocalChanges();
   const beforeChannel = randomString();
-  const before = localChanges.query([beforeChannel]).next();
+  const before = localChanges.discover([beforeChannel]).next();
   const afterChannel = randomString();
-  const after = localChanges.query([afterChannel]).next();
+  const after = localChanges.discover([afterChannel]).next();
   const sharedChannel = randomString();
-  const shared = localChanges.query([sharedChannel]).next();
+  const shared = localChanges.discover([sharedChannel]).next();
 
   const oldObject: GraffitiObject = randomGraffitiObject();
   oldObject.channels = [beforeChannel, sharedChannel];
@@ -110,11 +110,11 @@ it("put", async () => {
 it("patch", async () => {
   const localChanges = new LocalChanges();
   const beforeChannel = randomString();
-  const before = localChanges.query([beforeChannel]).next();
+  const before = localChanges.discover([beforeChannel]).next();
   const afterChannel = randomString();
-  const after = localChanges.query([afterChannel]).next();
+  const after = localChanges.discover([afterChannel]).next();
   const sharedChannel = randomString();
-  const shared = localChanges.query([sharedChannel]).next();
+  const shared = localChanges.discover([sharedChannel]).next();
 
   const oldObject: GraffitiObject = randomGraffitiObject();
   oldObject.channels = [beforeChannel, sharedChannel];
@@ -161,7 +161,7 @@ it("patch", async () => {
 it("delete", async () => {
   const localChanges = new LocalChanges();
   const channels = [randomString(), randomString(), randomString()];
-  const result = localChanges.query(channels).next();
+  const result = localChanges.discover(channels).next();
 
   const oldObject: GraffitiObject = randomGraffitiObject();
   oldObject.channels = [randomString(), ...channels.slice(1)];
@@ -175,10 +175,10 @@ it("delete", async () => {
 it("JSON query", async () => {
   const localChanges = new LocalChanges();
   const channels = [randomString(), randomString(), randomString()];
-  const resultNoQuery = localChanges.query(channels).next();
+  const resultNoQuery = localChanges.discover(channels).next();
   const resultQuery = localChanges
-    .query(channels, {
-      query: {
+    .discover(channels, {
+      schema: {
         not: {
           properties: {
             value: {

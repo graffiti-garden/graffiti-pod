@@ -1,3 +1,5 @@
+import { JSONSchema4 } from "json-schema";
+
 function addHeader(requestInit: RequestInit, key: string, value: string): void {
   if (!requestInit.headers || !(requestInit.headers instanceof Headers)) {
     requestInit.headers = new Headers();
@@ -5,27 +7,33 @@ function addHeader(requestInit: RequestInit, key: string, value: string): void {
   requestInit.headers.set(key, value);
 }
 
-function encodeStringArray(
-  requestInit: RequestInit,
-  key: string,
-  stringArray: string[],
-): void {
-  addHeader(requestInit, key, stringArray.map(encodeURIComponent).join(","));
+function encodeStringArray(stringArray: string[]): string {
+  return stringArray.map(encodeURIComponent).join(",");
 }
 
-export function encodeChannels(
-  requestInit: RequestInit,
-  channels: string[],
-): void {
-  encodeStringArray(requestInit, "Channels", channels);
-}
-
-export function encodeACL(requestInit: RequestInit, acl: string[]): void {
-  encodeStringArray(requestInit, "Access-Control-List", acl);
+export function encodeQueryParams(
+  url: string,
+  params: {
+    channels?: string[];
+    acl?: string[];
+    schema?: JSONSchema4;
+  },
+) {
+  url += "?";
+  if (params.channels) {
+    url += "channels=" + encodeStringArray(params.channels) + "&";
+  }
+  if (params.acl) {
+    url += "access-control-list=" + encodeStringArray(params.acl) + "&";
+  }
+  if (params.schema) {
+    url += "schema=" + encodeURIComponent(JSON.stringify(params.schema)) + "&";
+  }
+  return url;
 }
 
 export function encodeJSONBody(requestInit: RequestInit, body: any): void {
-  addHeader(requestInit, "Content-Type", "application/json");
+  addHeader(requestInit, "Content-Type", "application/json; charset=utf-8");
   requestInit.body = JSON.stringify(body);
 }
 

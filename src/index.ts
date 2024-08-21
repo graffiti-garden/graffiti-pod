@@ -12,10 +12,9 @@ import {
 } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import {
-  encodeACL,
-  encodeChannels,
   encodeIfModifiedSince,
   encodeJSONBody,
+  encodeQueryParams,
   encodeSkipLimit,
 } from "./header-encoders";
 import { Repeater } from "@repeaterjs/repeater";
@@ -125,12 +124,8 @@ export default class GraffitiClient {
     await this.delegation.addPod(location.webId, location.pod, options);
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
-    if (object["channels"]) {
-      encodeChannels(requestInit, object["channels"]);
-    }
-    if (object["acl"]) {
-      encodeACL(requestInit, object["acl"]);
-    }
+
+    url = encodeQueryParams(url, object);
     const response = await this.whichFetch(options)(url, requestInit);
     const oldObject = await parseGraffitiObjectResponse(
       response,
@@ -211,19 +206,11 @@ export default class GraffitiClient {
     if (patch.value) {
       encodeJSONBody(requestInit, patch.value);
     }
-    if (patch.channels) {
-      encodeChannels(
-        requestInit,
-        patch.channels.map((p) => JSON.stringify(p)),
-      );
-    }
-    if (patch.acl) {
-      encodeACL(
-        requestInit,
-        patch.acl.map((p) => JSON.stringify(p)),
-      );
-    }
-    const response = await this.whichFetch(options)(url, requestInit);
+    const urlWithQuery = encodeQueryParams(url, {
+      channels: patch.channels?.map((p) => JSON.stringify(p)),
+      acl: patch.acl?.map((p) => JSON.stringify(p)),
+    });
+    const response = await this.whichFetch(options)(urlWithQuery, requestInit);
     const oldObject = await parseGraffitiObjectResponse(
       response,
       location,
@@ -250,7 +237,7 @@ export default class GraffitiClient {
     void,
     void
   > {
-    const requestInit: RequestInit = { method: "POST" };
+    const requestInit: RequestInit = {};
     if (options?.ifModifiedSince) {
       encodeIfModifiedSince(requestInit, options.ifModifiedSince);
     }
@@ -366,10 +353,10 @@ export default class GraffitiClient {
     return this.list("orphans")(...args);
   }
 
-  private async *querySinglePod(
+  private async *discoverFromSinglePod(
     channels: string[],
     pod: string,
-    options?: Parameters<GraffitiClient["query"]>[1],
+    options?: Parameters<GraffitiClient["discover"]>[1],
   ): AsyncGenerator<
     | {
         error: false;
@@ -383,13 +370,14 @@ export default class GraffitiClient {
     void,
     void
   > {
-    const requestInit: RequestInit = { method: "POST" };
-    encodeChannels(requestInit, channels);
+    const requestInit: RequestInit = {};
+
+    const url = encodeQueryParams(pod + "/discover", {
+      channels,
+      schema: options?.schema,
+    });
 
     if (options) {
-      if (options.query) {
-        encodeJSONBody(requestInit, options.query);
-      }
       if (options.ifModifiedSince) {
         encodeIfModifiedSince(requestInit, options.ifModifiedSince);
       }
@@ -398,7 +386,7 @@ export default class GraffitiClient {
 
     for await (const result of fetchJSONLines(
       this.whichFetch(options),
-      pod,
+      url,
       requestInit,
     )) {
       if (result.error) {
@@ -434,23 +422,23 @@ export default class GraffitiClient {
     }
   }
 
-  async *queryLocalChanges(
+  async *discoverLocalChanges(
     channels: string[],
     options?: {
-      query?: JSONSchema4;
+      schema?: JSONSchema4;
       ifModifiedSince?: Date;
     },
   ): AsyncGenerator<GraffitiObject, void, void> {
-    for await (const object of this.localChanges.query(channels, options)) {
+    for await (const object of this.localChanges.discover(channels, options)) {
       yield object;
     }
   }
 
-  async *query(
+  async *discover(
     channels: string[],
     options?: {
       pods?: string[];
-      query?: JSONSchema4;
+      schema?: JSONSchema4;
       ifModifiedSince?: Date;
       limit?: number;
       skip?: number;
@@ -499,7 +487,7 @@ export default class GraffitiClient {
       return;
     }
     const iterators = pods.map((pod) =>
-      this.querySinglePod(channels, pod, options),
+      this.discoverFromSinglePod(channels, pod, options),
     );
     for await (const object of Repeater.merge(iterators)) {
       yield object;

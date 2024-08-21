@@ -78,12 +78,12 @@ export default class LocalChanges {
     this.dispatchChanges(oldObject);
   }
 
-  async *query(
+  async *discover(
     channels: string[],
-    options?: { query?: JSONSchema4; ifModifiedSince?: Date },
+    options?: { schema?: JSONSchema4; ifModifiedSince?: Date },
   ): AsyncGenerator<GraffitiObject, void, void> {
-    const validate = options?.query
-      ? this.ajv.compile(options.query)
+    const validate = options?.schema
+      ? this.ajv.compile(options.schema)
       : undefined;
     const matchOptions = {
       validate,

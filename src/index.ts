@@ -6,24 +6,18 @@ import type {
   GraffitiPatch,
 } from "./types";
 import type { JSONSchema4 } from "json-schema";
-import {
-  parseGraffitiObjectResponse,
-  fetchJSONLines,
-} from "./response-parsers";
+import { parseGraffitiObjectResponse } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
-import {
-  encodeIfModifiedSince,
-  encodeJSONBody,
-  encodeQueryParams,
-  encodeSkipLimit,
-} from "./header-encoders";
+import { encodeJSONBody, encodeQueryParams } from "./header-encoders";
 import { Repeater } from "@repeaterjs/repeater";
 import LocalChanges from "./local-changes";
+import LinesFeed from "./lines-feed";
 
 export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
 export default class GraffitiClient {
   readonly delegation = new Delegation();
+  private readonly linesFeed = new LinesFeed();
   private readonly localChanges = new LocalChanges();
 
   webId: undefined | string = undefined;
@@ -237,27 +231,36 @@ export default class GraffitiClient {
     void,
     void
   > {
-    const requestInit: RequestInit = {};
-    if (options?.ifModifiedSince) {
-      encodeIfModifiedSince(requestInit, options.ifModifiedSince);
-    }
     pod = pod.replace(/\/+$/, "");
-    for await (const result of fetchJSONLines(
-      this.whichFetch(options),
-      pod + "/list-" + listType,
-      requestInit,
-    )) {
-      if (result.error) {
-        yield { ...result, pod };
-      } else {
+    try {
+      for await (const resultString of this.linesFeed.fetch(
+        this.whichFetch(options),
+        pod + "/list-" + listType,
+        options?.ifModifiedSince,
+      )) {
+        let result: any;
+        try {
+          result = JSON.parse(resultString);
+        } catch {
+          yield {
+            error: true,
+            message: "Invalid JSON object",
+            pod,
+          };
+          continue;
+        }
+        const value = {
+          ...result,
+          lastModified: new Date(result.lastModified ?? NaN),
+          pod,
+        };
         yield {
           error: false,
-          value: {
-            ...result.value,
-            pod,
-          },
+          value,
         };
       }
+    } catch (e) {
+      yield { error: true, message: e!.toString(), pod };
     }
   }
 
@@ -371,36 +374,40 @@ export default class GraffitiClient {
     void,
     void
   > {
-    const requestInit: RequestInit = {};
-
     pod = pod.replace(/\/+$/, "");
     const url = encodeQueryParams(pod + "/discover", {
       channels,
       schema: options?.schema,
     });
 
-    if (options) {
-      if (options.ifModifiedSince) {
-        encodeIfModifiedSince(requestInit, options.ifModifiedSince);
-      }
-      encodeSkipLimit(requestInit, options.skip, options.limit);
-    }
-
-    for await (const result of fetchJSONLines(
-      this.whichFetch(options),
-      url,
-      requestInit,
-    )) {
-      if (result.error) {
-        yield { ...result, pod };
-      } else {
+    try {
+      for await (const resultString of this.linesFeed.fetch(
+        this.whichFetch(options),
+        url,
+        options?.ifModifiedSince,
+      )) {
         // TODO: validation of the JSON object!!
+        let result: any;
+        try {
+          result = JSON.parse(resultString);
+        } catch {
+          yield {
+            error: true,
+            message: "Invalid JSON object",
+            pod,
+          };
+          continue;
+        }
+
+        const value = {
+          ...result,
+          lastModified: new Date(result.lastModified ?? NaN),
+          pod,
+        };
+
         const output = {
           error: false,
-          value: {
-            ...result.value,
-            pod,
-          },
+          value,
         } as const;
 
         // Only yield the object if the owner has
@@ -421,6 +428,12 @@ export default class GraffitiClient {
           };
         }
       }
+    } catch (e) {
+      yield {
+        error: true,
+        message: e!.toString(),
+        pod,
+      };
     }
   }
 
@@ -442,8 +455,6 @@ export default class GraffitiClient {
       pods?: string[];
       schema?: JSONSchema4;
       ifModifiedSince?: Date;
-      limit?: number;
-      skip?: number;
       fetch?: typeof fetch;
     },
   ): AsyncGenerator<

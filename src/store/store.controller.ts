@@ -28,23 +28,45 @@ const CONTENT_TYPE = [
   "application/json; charset=utf-8",
 ] as const;
 
-const CACHE_CONTROL = ["Cache-Control", "private, max-age=300"] as const;
+const CACHE_CONTROL = [
+  "Cache-Control",
+  "private, max-age=604800, no-cache",
+] as const;
 
 @Controller()
 export class StoreController {
   constructor(private storeService: StoreService) {}
 
-  iteratorToStreamableFile(
-    iterator: AsyncGenerator<any, void, void>,
-  ): StreamableFile {
+  async iteratorToStreamableFile(
+    iterator: AsyncGenerator<
+      {
+        lastModified: Date;
+      },
+      void,
+      void
+    >,
+    response: FastifyReply,
+    ifModifiedSince: Date | undefined,
+  ): Promise<StreamableFile> {
+    const firstObject = await iterator.next();
+    if (firstObject.done) {
+      if (ifModifiedSince) {
+        response.status(304);
+      } else {
+        response.status(204);
+      }
+    } else {
+      response.header(
+        "last-modified",
+        firstObject.value.lastModified.toISOString(),
+      );
+    }
+
     const byteIterator = (async function* () {
-      let first = true;
+      if (firstObject.done) return;
+      yield Buffer.from(JSON.stringify(firstObject.value));
       for await (const object of iterator) {
-        if (!first) {
-          yield Buffer.from("\n");
-        } else {
-          first = false;
-        }
+        yield Buffer.from("\n");
         yield Buffer.from(JSON.stringify(object));
       }
     })();
@@ -61,6 +83,7 @@ export class StoreController {
     @WebId() selfWebId: string | null,
     @Channels() channels: string[],
     @Range() range: { skip?: number; limit?: number },
+    @Response({ passthrough: true }) response: FastifyReply,
     @Schema() schema?: any,
     @IfModifiedSince() ifModifiedSince?: Date,
   ) {
@@ -70,7 +93,7 @@ export class StoreController {
       skip: range.skip,
       limit: range.limit,
     });
-    return this.iteratorToStreamableFile(iterator);
+    return this.iteratorToStreamableFile(iterator, response, ifModifiedSince);
   }
 
   @Get("list-channels")
@@ -78,13 +101,14 @@ export class StoreController {
   @Header("Vary", "Authorization, If-Modified-Since")
   async listChannels(
     @WebId() selfWebId: string | null,
+    @Response({ passthrough: true }) response: FastifyReply,
     @IfModifiedSince() ifModifiedSince?: Date,
   ) {
     this.storeService.validateWebId(selfWebId, selfWebId);
     const iterator = this.storeService.listChannels(selfWebId, {
       ifModifiedSince,
     });
-    return this.iteratorToStreamableFile(iterator);
+    return this.iteratorToStreamableFile(iterator, response, ifModifiedSince);
   }
 
   @Get("list-orphans")
@@ -92,13 +116,14 @@ export class StoreController {
   @Header("Vary", "Authorization, If-Modified-Since")
   async listOrphans(
     @WebId() selfWebId: string | null,
+    @Response({ passthrough: true }) response: FastifyReply,
     @IfModifiedSince() ifModifiedSince?: Date,
   ) {
     this.storeService.validateWebId(selfWebId, selfWebId);
     const iterator = this.storeService.listOrphans(selfWebId, {
       ifModifiedSince,
     });
-    return this.iteratorToStreamableFile(iterator);
+    return this.iteratorToStreamableFile(iterator, response, ifModifiedSince);
   }
 
   @Put(":webId/:name")

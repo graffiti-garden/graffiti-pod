@@ -470,9 +470,9 @@ describe("StoreService", () => {
       // Objects appear in order they were placed
       const iterator = service.queryObjects(go.channels, webId);
       const result1 = await iterator.next();
-      expect(result1.value["value"]).toEqual(go.value);
+      expect(result1.value["value"]).toEqual(go2.value);
       const result2 = await iterator.next();
-      expect(result2.value["value"]).toEqual(go2.value);
+      expect(result2.value["value"]).toEqual(go.value);
     });
 
     it("query limited", async () => {
@@ -629,12 +629,12 @@ describe("StoreService", () => {
       const put = await service.getObject(go.webId, go.name, go.webId);
       if (!put) throw new Error("Object not found");
       const iteratorBefore = service.queryObjects(go.channels, webId, {
-        ifModifiedSince: put.lastModified,
+        ifModifiedSince: new Date(put.lastModified.getTime() - 1),
       });
       const resultBefore = await iteratorBefore.next();
       expect(resultBefore.value["value"]).toStrictEqual(go.value);
       const iteratorAfter = service.queryObjects(go.channels, webId, {
-        ifModifiedSince: new Date(put.lastModified.getTime() + 1),
+        ifModifiedSince: put.lastModified,
       });
       await expect(iteratorAfter.next()).resolves.toHaveProperty("done", true);
     });
@@ -652,7 +652,7 @@ describe("StoreService", () => {
       expect(lastModified?.getTime()).toBeLessThan(lastModified2?.getTime()!);
 
       const iterator = service.queryObjects(go.channels, webId, {
-        ifModifiedSince: new Date(lastModified!.getTime() + 1),
+        ifModifiedSince: lastModified,
       });
       const result1 = await iterator.next();
       expect(result1.value?.value).toStrictEqual(go2.value);
@@ -670,11 +670,10 @@ describe("StoreService", () => {
     });
 
     it("query for deleted content by timestampe", async () => {
-      await service.putObject(go);
-      const now = new Date();
+      const putted = await service.putObject(go);
       await service.deleteObject(go.webId, go.name);
       const iterator = service.queryObjects(go.channels, null, {
-        ifModifiedSince: now,
+        ifModifiedSince: putted.lastModified,
       });
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);
@@ -696,7 +695,7 @@ describe("StoreService", () => {
         nothing.lastModified.getTime(),
       );
       const iterator = service.queryObjects(go.channels, null, {
-        ifModifiedSince: new Date(replaced?.lastModified.getTime()!),
+        ifModifiedSince: nothing.lastModified,
         query: {
           properties: {
             value: {

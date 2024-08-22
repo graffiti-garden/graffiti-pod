@@ -217,7 +217,8 @@ export class StoreService {
   }
 
   private ifModifiedSinceQuery(ifModifiedSince?: Date) {
-    return ifModifiedSince ? { lastModified: { $gte: ifModifiedSince } } : {};
+    // TODO: gt can cause trouble with concurrent writes
+    return ifModifiedSince ? { lastModified: { $gt: ifModifiedSince } } : {};
   }
 
   async *listOrphans(
@@ -256,13 +257,13 @@ export class StoreService {
       },
       // Get the most recent version of each object
       {
-        $sort: { lastModified: 1, tombstone: -1 },
+        $sort: { lastModified: -1, tombstone: 1 },
       },
       {
         $group: {
           _id: "$name",
-          lastModified: { $last: "$lastModified" },
-          tombstone: { $last: "$tombstone" },
+          lastModified: { $first: "$lastModified" },
+          tombstone: { $first: "$tombstone" },
         },
       },
       // Fix the output
@@ -319,7 +320,7 @@ export class StoreService {
         $unwind: "$channels",
       },
       {
-        $sort: { lastModified: 1, tombstone: -1 },
+        $sort: { lastModified: -1, tombstone: 1 },
       },
       {
         $group: {
@@ -327,8 +328,8 @@ export class StoreService {
             name: "$name",
             channel: "$channels",
           },
-          lastModified: { $last: "$lastModified" },
-          tombstone: { $last: "$tombstone" },
+          lastModified: { $first: "$lastModified" },
+          tombstone: { $first: "$tombstone" },
         },
       },
       // Count up the remaining objects in each channel
@@ -413,16 +414,16 @@ export class StoreService {
       // Group by webId and name and reduce to only the latest
       // version of each document
       {
-        $sort: { lastModified: 1, tombstone: -1 },
+        $sort: { lastModified: -1, tombstone: 1 },
       },
       {
         $group: {
           _id: { webId: "$webId", name: "$name" },
-          value: { $last: "$value" },
-          lastModified: { $last: "$lastModified" },
-          acl: { $last: "$acl" },
-          channels: { $last: "$channels" },
-          tombstone: { $last: "$tombstone" },
+          value: { $first: "$value" },
+          lastModified: { $first: "$lastModified" },
+          acl: { $first: "$acl" },
+          channels: { $first: "$channels" },
+          tombstone: { $first: "$tombstone" },
         },
       },
       // Mask out the value if the object has been deleted
@@ -447,7 +448,7 @@ export class StoreService {
       },
       // Sort again after grouping
       {
-        $sort: { lastModified: 1 },
+        $sort: { lastModified: -1 },
       },
       // Add optional skip and limits
       ...(options?.skip ? [{ $skip: options.skip }] : []),

@@ -279,7 +279,7 @@ describe("StoreController", () => {
     const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels: [],
     });
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(204);
     const output = await response.text();
     expect(output.length).toBe(0);
   });
@@ -305,32 +305,48 @@ describe("StoreController", () => {
     const value2 = { [randomString()]: randomString() + "\n😏" };
     const channels1 = [randomString(), randomString()];
     const channels2 = [randomString(), channels1[0]];
-    await request(solidFetch, toUrl(randomString()), "PUT", {
+    const putted1 = await request(solidFetch, toUrl(randomString()), "PUT", {
       body: value1,
       channels: channels1,
     });
-    await request(solidFetch, toUrl(randomString()), "PUT", {
+    const putted2 = await request(solidFetch, toUrl(randomString()), "PUT", {
       body: value2,
       channels: channels2,
     });
+
+    expect(
+      new Date(putted2.headers.get("last-modified")!).getTime(),
+    ).toBeGreaterThan(
+      new Date(putted1.headers.get("last-modified")!).getTime(),
+    );
 
     const channels = [channels1[0]];
     const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
     });
     expect(response.status).toBe(200);
+    expect(response.headers.get("last-modified")).toBe(
+      putted2.headers.get("last-modified"),
+    );
     const output = await response.text();
     const parts = output.split("\n");
     expect(parts.length).toBe(2);
     const [first, second] = parts.map((p) => JSON.parse(p));
-    expect(first.value).toEqual(value1);
-    expect(first.channels.sort()).toEqual(channels1.sort());
+    expect(first.value).toEqual(value2);
+    expect(first.channels.sort()).toEqual(channels2.sort());
     expect(first.acl).toBeNull();
     expect(first.tombstone).toBe(false);
-    expect(second.value).toEqual(value2);
-    expect(second.channels.sort()).toEqual(channels2.sort());
+    expect(second.value).toEqual(value1);
+    expect(second.channels.sort()).toEqual(channels1.sort());
     expect(second.acl).toBeNull();
     expect(second.tombstone).toBe(false);
+  });
+
+  it("query empty modified since", async () => {
+    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
+      ifModifiedSince: new Date().toISOString(),
+    });
+    expect(response.status).toBe(304);
   });
 
   it("query modified since", async () => {
@@ -350,8 +366,11 @@ describe("StoreController", () => {
 
     const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels,
-      ifModifiedSince: new Date(lastModified1.getTime() + 1).toISOString(),
+      ifModifiedSince: lastModified1.toISOString(),
     });
+    expect(response.headers.get("last-modified")).toBe(
+      lastModified2.toISOString(),
+    );
     expect(response.status).toBe(200);
     // Output only contains the last value
     const output = await response.json();
@@ -367,7 +386,7 @@ describe("StoreController", () => {
 
   it("query with skip", async () => {
     const channels = [randomString(), randomString()];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 9; i >= 0; i--) {
       await request(solidFetch, toUrl(randomString()), "PUT", {
         body: { index: i },
         channels,
@@ -390,7 +409,7 @@ describe("StoreController", () => {
 
   it("query with limit", async () => {
     const channels = [randomString(), randomString()];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 9; i >= 0; i--) {
       await request(solidFetch, toUrl(randomString()), "PUT", {
         body: { index: i },
         channels,
@@ -413,7 +432,7 @@ describe("StoreController", () => {
 
   it("query with skip and limit", async () => {
     const channels = [randomString(), randomString()];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 9; i >= 0; i--) {
       await request(solidFetch, toUrl(randomString()), "PUT", {
         body: { index: i },
         channels,
@@ -442,7 +461,7 @@ describe("StoreController", () => {
 
   it("query with schema", async () => {
     const channels = [randomString(), randomString()];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 9; i >= 0; i--) {
       await request(solidFetch, toUrl(randomString()), "PUT", {
         body: { index: i },
         channels,

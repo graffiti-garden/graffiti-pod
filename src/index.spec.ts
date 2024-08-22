@@ -202,10 +202,10 @@ it("query multiple", async () => {
   const iterator = graffiti.discover(channels, { fetch, pods: [homePod] });
   const result1 = await iterator.next();
   if (result1.value?.error) throw new Error();
-  expect(result1.value?.value.value).toEqual(values[0]);
+  expect(result1.value?.value.value).toEqual(values[1]);
   const result2 = await iterator.next();
   if (result2.value?.error) throw new Error();
-  expect(result2.value?.value.value).toEqual(values[1]);
+  expect(result2.value?.value.value).toEqual(values[0]);
   const result3 = await iterator.next();
   expect(result3.done).toBe(true);
 });
@@ -278,7 +278,7 @@ it("query with last modified", async () => {
 it("query with skip", async () => {
   const graffiti = new GraffitiClient();
   const channels = [randomString(), randomString()];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 9; i >= 0; i--) {
     await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
       fetch,
     });
@@ -354,7 +354,7 @@ it("bad limit", async () => {
 it("query with limit", async () => {
   const graffiti = new GraffitiClient();
   const channels = [randomString(), randomString()];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 9; i >= 0; i--) {
     await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
       fetch,
     });
@@ -377,7 +377,7 @@ it("query with limit", async () => {
 it("query with skip and limit", async () => {
   const graffiti = new GraffitiClient();
   const channels = [randomString(), randomString()];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 9; i >= 0; i--) {
     await graffiti.put({ value: { index: i }, channels }, randomLocation(), {
       fetch,
     });
@@ -442,7 +442,7 @@ it("list orphans with ifModifiedSince", async () => {
   const orphanIterator = graffiti.listOrphans({
     fetch,
     webId,
-    ifModifiedSince: now,
+    ifModifiedSince: new Date(now.getTime() - 1),
     pods: [homePod],
   });
   const result = await orphanIterator.next();

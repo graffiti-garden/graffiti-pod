@@ -111,6 +111,9 @@ export async function* parseJSONLinesResponse(
   void,
   void
 > {
+  if (response.status === 204 || response.status === 304) {
+    return;
+  }
   if (!response.ok) {
     yield {
       error: true,

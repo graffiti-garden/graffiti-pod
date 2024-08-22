@@ -28,10 +28,12 @@ const CONTENT_TYPE = [
   "application/json; charset=utf-8",
 ] as const;
 
-const CACHE_CONTROL = [
-  "Cache-Control",
-  "private, max-age=604800, no-cache",
-] as const;
+// TODO:
+// include max-age which corresponds to
+// how long tombstones are kept around,
+// after which the client will need to
+// fetch a fresh feed rather than a delta.
+const FEED_CACHE_CONTROL = ["Cache-Control", "private, no-store, im"] as const;
 
 @Controller()
 export class StoreController {
@@ -48,10 +50,14 @@ export class StoreController {
     response: FastifyReply,
     ifModifiedSince: Date | undefined,
   ): Promise<StreamableFile> {
+    // See: https://bobwyman.typepad.com/main/2004/09/using_rfc3229_w.html
+    // and: https://www.ctrl.blog/entry/feed-delta-updates.html
+
     const firstObject = await iterator.next();
     if (firstObject.done) {
       if (ifModifiedSince) {
         response.status(304);
+        response.header("last-modified", ifModifiedSince.toISOString());
       } else {
         response.status(204);
       }
@@ -60,6 +66,12 @@ export class StoreController {
         "last-modified",
         firstObject.value.lastModified.toISOString(),
       );
+      if (ifModifiedSince) {
+        response.status(226);
+        response.header("IM", "prepend");
+      } else {
+        response.status(200);
+      }
     }
 
     const byteIterator = (async function* () {
@@ -77,7 +89,7 @@ export class StoreController {
   }
 
   @Get("discover")
-  @Header(...CACHE_CONTROL)
+  @Header(...FEED_CACHE_CONTROL)
   @Header("Vary", "Authorization, If-Modified-Since, Range")
   async queryObjects(
     @WebId() selfWebId: string | null,
@@ -97,7 +109,7 @@ export class StoreController {
   }
 
   @Get("list-channels")
-  @Header(...CACHE_CONTROL)
+  @Header(...FEED_CACHE_CONTROL)
   @Header("Vary", "Authorization, If-Modified-Since")
   async listChannels(
     @WebId() selfWebId: string | null,
@@ -112,7 +124,7 @@ export class StoreController {
   }
 
   @Get("list-orphans")
-  @Header(...CACHE_CONTROL)
+  @Header(...FEED_CACHE_CONTROL)
   @Header("Vary", "Authorization, If-Modified-Since")
   async listOrphans(
     @WebId() selfWebId: string | null,
@@ -202,15 +214,21 @@ export class StoreController {
 
   @Get(":webId/:name")
   @Header(...CONTENT_TYPE)
-  @Header(...CACHE_CONTROL)
+  @Header("Cache-Control", "private, no-cache")
   @Header("Vary", "Authorization")
   async getObject(
     @DecodeParam("webId") webId: string,
     @DecodeParam("name") name: string,
     @WebId() selfWebId: string | null,
     @Response({ passthrough: true }) response: FastifyReply,
+    @IfModifiedSince() ifModifiedSince?: Date,
   ) {
     const gotten = await this.storeService.getObject(webId, name, selfWebId);
+    if (gotten && ifModifiedSince && gotten.lastModified <= ifModifiedSince) {
+      response.status(304);
+      response.header("last-modified", gotten.lastModified.toISOString());
+      return;
+    }
     return this.storeService.returnObject(gotten, selfWebId, response);
   }
 }

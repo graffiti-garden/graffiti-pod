@@ -148,6 +148,36 @@ describe("StoreController", () => {
     );
   });
 
+  it("get non-existant with if-modified-since", async () => {
+    const responseModified = await fetch(toUrl(randomString()), {
+      headers: {
+        "If-Modified-Since": new Date().toISOString(),
+      },
+    });
+    expect(responseModified.status).toBe(404);
+  });
+
+  it("put and get with if-modified-since", async () => {
+    const url = toUrl(randomString());
+    const body = { [randomString()]: randomString(), "🪿": "🐣" };
+    const channels = [randomString(), "://,🎨", randomString()];
+    const responsePut = await request(solidFetch, url, "PUT", {
+      body,
+      channels,
+    });
+
+    const responseModified = await fetch(url, {
+      headers: {
+        "If-Modified-Since": responsePut.headers.get("last-modified")!,
+      },
+    });
+    expect(responseModified.status).toBe(304);
+
+    const responseGet = await fetch(url);
+    expect(responseGet.status).toBe(200);
+    await expect(responseGet.json()).resolves.toEqual(body);
+  });
+
   it("put and get unauthorized", async () => {
     const url = toUrl(randomString());
     const acl = [randomString()];
@@ -371,7 +401,8 @@ describe("StoreController", () => {
     expect(response.headers.get("last-modified")).toBe(
       lastModified2.toISOString(),
     );
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(226);
+    expect(response.headers.get("im")).toBe("prepend");
     // Output only contains the last value
     const output = await response.json();
     expect(output.value).toEqual(value);

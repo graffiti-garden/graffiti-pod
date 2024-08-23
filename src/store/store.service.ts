@@ -16,12 +16,22 @@ import { FastifyReply } from "fastify";
 import type { JSONSchema4 } from "json-schema";
 import { encodeURIArray } from "../params/params.utils";
 
+export const TOMBSTONE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 1 day in ms
+export const TOMBSTONE_REMOVAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes in ms
+
 @Injectable()
 export class StoreService {
   constructor(
     @InjectModel(StoreSchema.name)
     private storeModel: Model<StoreSchema>,
-  ) {}
+  ) {
+    setInterval(() => {
+      this.storeModel.deleteMany({
+        tombstone: true,
+        lastModified: { $lt: new Date(Date.now() - TOMBSTONE_MAX_AGE_MS) },
+      });
+    }, TOMBSTONE_REMOVAL_INTERVAL_MS);
+  }
 
   validateWebId(targetWebId: string | null, selfWebId: string | null) {
     if (!selfWebId) {

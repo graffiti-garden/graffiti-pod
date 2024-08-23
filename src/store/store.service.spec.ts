@@ -1009,13 +1009,12 @@ describe("StoreService", () => {
 
   it("list orphans modified since", async () => {
     const go = randomGraffitiObject();
-    await service.putObject(go);
-    const now = new Date();
+    const putted = await service.putObject(go);
     const go2 = randomGraffitiObject();
     go2.webId = go.webId;
     await service.putObject(go2);
     const iterator = service.listOrphans(go.webId, {
-      ifModifiedSince: now,
+      ifModifiedSince: putted.lastModified,
     });
     const result = await iterator.next();
     expect(result.value?.name).toBe(go2.name);

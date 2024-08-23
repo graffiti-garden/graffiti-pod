@@ -16,7 +16,7 @@ import { WebId } from "../params/webid.decorator";
 import { Channels } from "../params/channels.decorator";
 import { AccessControlList } from "../params/acl.decorator";
 import { StoreSchema } from "./store.schema";
-import { StoreService } from "./store.service";
+import { StoreService, TOMBSTONE_MAX_AGE_MS } from "./store.service";
 import { FastifyReply } from "fastify";
 import { Operation } from "fast-json-patch";
 import { IfModifiedSince } from "../params/if-modified-since.decorator";
@@ -28,12 +28,10 @@ const CONTENT_TYPE = [
   "application/json; charset=utf-8",
 ] as const;
 
-// TODO:
-// include max-age which corresponds to
-// how long tombstones are kept around,
-// after which the client will need to
-// fetch a fresh feed rather than a delta.
-const FEED_CACHE_CONTROL = ["Cache-Control", "private, no-store, im"] as const;
+const FEED_CACHE_CONTROL = [
+  "Cache-Control",
+  `private, no-store, im, max-age=${TOMBSTONE_MAX_AGE_MS / 1000}`,
+] as const;
 
 @Controller()
 export class StoreController {

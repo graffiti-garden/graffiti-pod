@@ -1,7 +1,12 @@
 # Graffiti Pod
 
-This server allows users to.
-Authentication is managed via Solid WebID-OIDC and users must have a seperate webID to use this service.
+This is a generic HTTP storage service for JSON objects with the added capability
+that data can be published to channels and users can "discover"
+content posted to channels of their choosing. While very simple, many types of
+social applications can be built on top of this model.
+
+Authentication is via [Solid OIDC](https://solid.github.io/solid-oidc/) and
+so users must have a seperate Solid webID to publish data or view private data.
 
 ## Local Usage
 

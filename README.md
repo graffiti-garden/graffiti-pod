@@ -1,5 +1,8 @@
 # Graffiti Pod
 
+This server allows users to.
+Authentication is managed via Solid WebID-OIDC and users must have a seperate webID to use this service.
+
 ## Local Usage
 
 To launch the container, run:
@@ -105,10 +108,5 @@ sudo systemctl restart graffiti-pod.service
 
 ## TODO:
 
-- Complete DHT implimentation
-  - Watch for added channels, compute info hash, store the (channel, infoHash) pair for lookup in the database, and publish the info hash to the DHT
-  - Watch for deleted channels and remove info hashes from the database and DHT as necessary
-  - Have a recurring timer that keeps things in the DHT.
-  - Add an endpoint that users can use to check if the server knows a particular channel, without revealing that channel, via the ZK proof.
-- Create a recurring timer that deletes irrelevant tombstones
-  - Return the expiration time in a meta data hook, so clients can know when their cache is stale
+- Add an endpoint that users can use to check if the server knows a particular channel,
+  without revealing that channel, via the ZK proof.

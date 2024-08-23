@@ -1,4 +1,5 @@
 import { parseErrorResponse } from "./response-parsers";
+import { Repeater } from "@repeaterjs/repeater";
 
 export default class LinesFeed {
   private decoder = new TextDecoder();
@@ -49,10 +50,12 @@ export default class LinesFeed {
     }
   }
 
-  async *fetch(
-    fetch_: typeof fetch,
+  async *stream(
     url: string,
-    ifModifiedSince?: Date,
+    options?: {
+      ifModifiedSince?: Date;
+      fetch?: typeof fetch;
+    },
   ): AsyncGenerator<string, void, void> {
     // Share the results of concurrent requests
     const lock = this.locks.get(url);
@@ -78,8 +81,8 @@ export default class LinesFeed {
     let lastModified: Date | undefined = undefined;
     let cachedLines: string[] = [];
 
-    if (ifModifiedSince) {
-      lastModified = ifModifiedSince;
+    if (options?.ifModifiedSince) {
+      lastModified = options?.ifModifiedSince;
     } else {
       const cached = this.cache.get(url);
       if (cached) {
@@ -90,7 +93,7 @@ export default class LinesFeed {
 
     let response: Response;
     try {
-      response = await fetch_(url, {
+      response = await (options?.fetch ?? fetch)(url, {
         headers: {
           ...(lastModified
             ? {
@@ -137,5 +140,80 @@ export default class LinesFeed {
     for (const line of lines) {
       yield line;
     }
+  }
+
+  streamMultiple<T>(
+    urlPath: string,
+    parser: (line: string, pod: string) => T | Promise<T>,
+    options?: {
+      pods?: string[];
+      ifModifiedSince?: Date;
+      fetch?: typeof fetch;
+    },
+  ): AsyncGenerator<
+    | {
+        error: false;
+        value: T;
+      }
+    | {
+        error: true;
+        message: string;
+        pod: string;
+      },
+    void,
+    void
+  > {
+    const pods = options?.pods;
+    if (!pods) {
+      throw new Error("pods must be provided");
+    }
+
+    const this_ = this;
+    const iterators = pods.map((pod) => {
+      // Return type is the same as the return type of the function
+      return (async function* (): ReturnType<typeof this_.streamMultiple<T>> {
+        let origin: string;
+        try {
+          origin = new URL(pod).origin;
+        } catch (e) {
+          yield {
+            error: true,
+            message: e!.toString(),
+            pod,
+          };
+          return;
+        }
+        const url = `${origin}/${urlPath}`;
+
+        try {
+          for await (const line of this_.stream(url, options)) {
+            let value: T;
+            try {
+              value = await parser(line, pod);
+            } catch (e) {
+              yield {
+                error: true,
+                message: e!.toString(),
+                pod,
+              };
+              continue;
+            }
+
+            yield {
+              error: false,
+              value,
+            };
+          }
+        } catch (e) {
+          yield {
+            error: true,
+            message: e!.toString(),
+            pod,
+          };
+        }
+      })();
+    });
+
+    return Repeater.merge(iterators);
   }
 }

@@ -7,7 +7,7 @@ export interface GraffitiLocation {
 }
 
 export interface GraffitiLocalObject {
-  value: any;
+  value?: {};
   channels: string[];
   acl?: string[];
 }

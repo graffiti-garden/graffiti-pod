@@ -465,7 +465,6 @@ it("list orphans", async () => {
   const existingOrphans: string[] = [];
   const orphanIterator1 = graffiti.listOrphans({
     fetch,
-    webId,
     pods: [homePod],
   });
   for await (const orphan of orphanIterator1) {
@@ -478,7 +477,6 @@ it("list orphans", async () => {
   });
   const orphanIterator2 = graffiti.listOrphans({
     fetch,
-    webId,
     pods: [homePod],
   });
   let newOrphans: string[] = [];
@@ -503,7 +501,6 @@ it("list orphans with ifModifiedSince", async () => {
   const now = gotten.lastModified;
   const orphanIterator = graffiti.listOrphans({
     fetch,
-    webId,
     ifModifiedSince: new Date(now.getTime() - 1),
     pods: [homePod],
   });
@@ -531,7 +528,6 @@ it("deleted orphan", async () => {
   );
   const orphanIterator = graffiti.listOrphans({
     fetch,
-    webId,
     ifModifiedSince: now,
     pods: [homePod],
   });
@@ -550,7 +546,6 @@ it("list channels", async () => {
   const existingChannels: Map<string, number> = new Map();
   const channelIterator1 = graffiti.listChannels({
     fetch,
-    webId,
     pods: [homePod],
   });
   for await (const channel of channelIterator1) {
@@ -581,7 +576,6 @@ it("list channels", async () => {
 
   const channelIterator2 = graffiti.listChannels({
     fetch,
-    webId,
     pods: [homePod],
   });
   let newChannels: Map<string, number> = new Map();
@@ -618,8 +612,8 @@ it("list channels with ifModifiedSince", async () => {
   const gotten = await graffiti.get(firstPutted!, { fetch });
   const now = gotten.lastModified;
   const channelIterator = graffiti.listChannels({
-    webId,
     fetch,
+    pods: [homePod],
     ifModifiedSince: now,
   });
   let newChannels: Map<string, number> = new Map();
@@ -655,7 +649,7 @@ it("list channels with deleted channel", async () => {
   );
 
   const channelIterator = graffiti.listChannels({
-    webId,
+    pods: [homePod],
     fetch,
     ifModifiedSince: now,
   });
@@ -710,15 +704,22 @@ it("put with random name", async () => {
   const graffiti = new GraffitiClient();
   const value = randomValue();
 
-  graffiti.setWebId(webId);
-  graffiti.setFetch(fetch);
-  graffiti.setHomePod(homePod);
-
-  const putted = await graffiti.put({ value, channels: [], acl: [] });
+  const putted = await graffiti.put(
+    { value, channels: [], acl: [] },
+    {},
+    {
+      webId,
+      fetch,
+      pod: homePod,
+    },
+  );
   expect(putted.webId).toBe(webId);
   expect(putted.pod).toBe(homePod);
   expect(putted.name).toHaveLength(32);
+  console.log(putted);
 
-  const gotten = await graffiti.get(putted);
+  const gotten = await graffiti.get(putted, {
+    fetch,
+  });
   expect(gotten.value).toEqual(value);
 });

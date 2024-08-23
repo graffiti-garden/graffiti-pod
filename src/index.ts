@@ -9,9 +9,14 @@ import type { JSONSchema4 } from "json-schema";
 import { parseGraffitiObjectResponse } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import { encodeJSONBody, encodeQueryParams } from "./header-encoders";
-import { Repeater } from "@repeaterjs/repeater";
 import LocalChanges from "./local-changes";
 import LinesFeed from "./lines-feed";
+import Ajv from "ajv";
+import {
+  GRAFFITI_OBJECT_SCHEMA,
+  ORPHAN_RESULT_SCHEMA,
+  CHANNEL_RESULT_SCHEMA,
+} from "./schemas";
 
 export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 
@@ -19,41 +24,28 @@ export default class GraffitiClient {
   readonly delegation = new Delegation();
   private readonly linesFeed = new LinesFeed();
   private readonly localChanges = new LocalChanges();
-
-  webId: undefined | string = undefined;
-  homePod: undefined | string = undefined;
-  fetch: typeof fetch = fetch;
-
-  setFetch(fetch_?: typeof fetch) {
-    this.fetch = fetch_ ?? fetch;
-    this.delegation.setFetch(fetch_);
-  }
-
-  setWebId(webId?: string) {
-    this.webId = webId;
-  }
-
-  setHomePod(pod?: string) {
-    this.homePod = pod;
-  }
-
-  private whichFetch(options?: { fetch?: typeof fetch }) {
-    return options?.fetch ?? this.fetch;
-  }
-
-  private whichWebId(webId?: string) {
-    return webId ?? this.webId;
-  }
-
-  private whichPod(pod?: string) {
-    return pod ?? this.homePod;
-  }
+  private readonly validateGraffitiObject = new Ajv().compile(
+    GRAFFITI_OBJECT_SCHEMA,
+  );
+  private readonly validateOrphanResult = new Ajv().compile(
+    ORPHAN_RESULT_SCHEMA,
+  );
+  private readonly validateChannelResult = new Ajv().compile(
+    CHANNEL_RESULT_SCHEMA,
+  );
 
   locationToUrl(location: GraffitiLocation): string {
     return locationToUrl(location);
   }
+  objectToUrl(object: GraffitiObject): string {
+    return this.locationToUrl(object);
+  }
   urlToLocation(url: string): GraffitiLocation {
     return urlToLocation(url);
+  }
+
+  private whichFetch(options?: { fetch?: typeof fetch }) {
+    return options?.fetch ?? fetch;
   }
 
   async put(
@@ -68,17 +60,17 @@ export default class GraffitiClient {
       pod?: string;
       webId?: string;
     },
-    options?: { fetch?: typeof fetch },
+    options?: { fetch?: typeof fetch; pod?: string; webId?: string },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
     url?: string,
-    options?: { fetch?: typeof fetch },
+    options?: { fetch?: typeof fetch; pod?: string; webId?: string },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
     locationOrUrl?: string | { name?: string; pod?: string; webId?: string },
-    options?: { fetch?: typeof fetch },
+    options?: { fetch?: typeof fetch; pod?: string; webId?: string },
   ): Promise<GraffitiObject> {
     let location: GraffitiLocation;
     let url: string;
@@ -89,16 +81,16 @@ export default class GraffitiClient {
       url = parsed.url;
     } else {
       let { webId, name, pod } = locationOrUrl ?? {};
-      webId = this.whichWebId(webId);
+      webId = webId ?? options?.webId;
       if (!webId) {
         throw new Error(
-          "no webId provided. either use setWebId to provide a global webId or provide a webId in the location",
+          "no webId provided to PUT either via the location or options.",
         );
       }
-      pod = this.whichPod(pod);
+      pod = pod ?? options?.pod;
       if (!pod) {
         throw new Error(
-          "no pod provided. either use setHomePod to provide a global pod or provide a pod in the location",
+          "no pod provided to PUT either via the location or options.",
         );
       }
 
@@ -214,307 +206,96 @@ export default class GraffitiClient {
     return oldObject;
   }
 
-  private async *listSinglePod(
-    listType: string,
-    pod: string,
-    options?: Parameters<ReturnType<GraffitiClient["list"]>>[0],
-  ): AsyncGenerator<
-    | {
-        error: false;
-        value: any;
-      }
-    | {
-        error: true;
-        message: string;
-        pod: string;
-      },
-    void,
-    void
-  > {
-    try {
-      pod = new URL(pod).origin;
-    } catch (e) {
-      yield { error: true, message: e!.toString(), pod };
-      return;
-    }
-
-    try {
-      for await (const resultString of this.linesFeed.fetch(
-        this.whichFetch(options),
-        pod + "/list-" + listType,
-        options?.ifModifiedSince,
-      )) {
-        let result: any;
-        try {
-          result = JSON.parse(resultString);
-        } catch {
-          yield {
-            error: true,
-            message: "Invalid JSON object",
-            pod,
-          };
-          continue;
+  listChannels(options?: {
+    pods?: string[];
+    fetch?: typeof fetch;
+    ifModifiedSince?: Date;
+  }) {
+    return this.linesFeed.streamMultiple(
+      "list-channels",
+      (line, pod) => {
+        const partial = JSON.parse(line);
+        if (!this.validateChannelResult(partial)) {
+          throw new Error("Invalid channel result");
         }
-        const value = {
-          ...result,
-          lastModified: new Date(result.lastModified ?? NaN),
+        return {
+          ...partial,
+          lastModified: new Date(partial.lastModified),
           pod,
         };
-        yield {
-          error: false,
-          value,
-        };
-      }
-    } catch (e) {
-      yield { error: true, message: e!.toString(), pod };
-    }
-  }
-
-  private list(listType: string) {
-    const this_ = this;
-    return async function* (options?: {
-      webId?: string;
-      pods?: string[];
-      fetch?: typeof fetch;
-      ifModifiedSince?: Date;
-    }): AsyncGenerator<
-      | {
-          error: false;
-          value: any;
-        }
-      | {
-          error: true;
-          message: string;
-          pod?: string;
-        },
-      void,
-      void
-    > {
-      let pods: string[];
-      if (options?.pods) {
-        pods = options.pods;
-      } else {
-        const webId = this_.whichWebId(options?.webId);
-        if (webId) {
-          pods = await this_.delegation.getPods(webId);
-        } else {
-          yield {
-            error: true,
-            message: "Either webId or pods must be provided",
-          };
-          return;
-        }
-      }
-
-      const iterators = pods.map((pod) =>
-        this_.listSinglePod(listType, pod, options),
-      );
-      for await (const json of Repeater.merge(iterators)) {
-        yield json;
-      }
-    };
-  }
-
-  listChannels(
-    ...args: Parameters<ReturnType<GraffitiClient["list"]>>
-  ): AsyncGenerator<
-    | {
-        error: false;
-        value: {
-          channel: string;
-          count: number;
-          lastModified: Date;
-          pod: string;
-        };
-      }
-    | {
-        error: true;
-        message: string;
-        pod?: string;
       },
-    void,
-    void
-  > {
-    // TODO: validate the return type
-    return this.list("channels")(...args);
+      options,
+    );
   }
 
-  listOrphans(
-    ...args: Parameters<ReturnType<GraffitiClient["list"]>>
-  ): AsyncGenerator<
-    | {
-        error: false;
-        value: {
-          name: string;
-          tombstone: boolean;
-          lastModified: Date;
-          pod: string;
+  listOrphans(options?: {
+    pods?: string[];
+    fetch?: typeof fetch;
+    ifModifiedSince?: Date;
+  }) {
+    return this.linesFeed.streamMultiple(
+      "list-orphans",
+      (line, pod) => {
+        const partial = JSON.parse(line);
+        if (!this.validateOrphanResult(partial)) {
+          throw new Error("Invalid orphan result");
+        }
+        return {
+          ...partial,
+          lastModified: new Date(partial.lastModified),
+          pod,
         };
-      }
-    | {
-        error: true;
-        message: string;
-        pod?: string;
       },
-    void,
-    void
-  > {
-    // TODO: validate the return type
-    return this.list("orphans")(...args);
+      options,
+    );
   }
 
-  private async *discoverFromSinglePod(
+  discoverLocalChanges(
     channels: string[],
-    pod: string,
-    options?: Parameters<GraffitiClient["discover"]>[1],
-  ): AsyncGenerator<
-    | {
-        error: false;
-        value: GraffitiObject;
-      }
-    | {
-        error: true;
-        message: string;
-        pod: string;
-      },
-    void,
-    void
-  > {
-    try {
-      pod = new URL(pod).origin;
-    } catch (e) {
-      yield { error: true, message: e!.toString(), pod };
-      return;
-    }
-    const url = encodeQueryParams(pod + "/discover", {
+    options?: {
+      schema?: JSONSchema4;
+      ifModifiedSince?: Date;
+    },
+  ) {
+    return this.localChanges.discover(channels, options);
+  }
+
+  discover(
+    channels: string[],
+    options?: {
+      pods?: string[];
+      schema?: JSONSchema4;
+      ifModifiedSince?: Date;
+      fetch?: typeof fetch;
+    },
+  ) {
+    const urlPath = encodeQueryParams("discover", {
       channels,
       schema: options?.schema,
     });
 
-    try {
-      for await (const resultString of this.linesFeed.fetch(
-        this.whichFetch(options),
-        url,
-        options?.ifModifiedSince,
-      )) {
-        // TODO: validation of the JSON object!!
-        let result: any;
-        try {
-          result = JSON.parse(resultString);
-        } catch {
-          yield {
-            error: true,
-            message: "Invalid JSON object",
-            pod,
-          };
-          continue;
+    return this.linesFeed.streamMultiple(
+      urlPath,
+      async (line, pod) => {
+        const partial = JSON.parse(line);
+        if (!this.validateGraffitiObject(partial)) {
+          throw new Error("Invalid graffiti object");
         }
 
-        const value = {
-          ...result,
-          lastModified: new Date(result.lastModified ?? NaN),
+        const object: GraffitiObject = {
+          ...partial,
           pod,
+          lastModified: new Date(partial.lastModified),
         };
 
-        const output = {
-          error: false,
-          value,
-        } as const;
-
-        // Only yield the object if the owner has
-        // authorized the graffiti pod to host for them.
         if (
-          await this.delegation.hasPod(
-            output.value.webId,
-            output.value.pod,
-            options,
-          )
+          !(await this.delegation.hasPod(object.webId, object.pod, options))
         ) {
-          yield output;
-        } else {
-          yield {
-            error: true,
-            message: `Pod returned an object not authorized by its owner, ${output.value.webId}`,
-            pod,
-          };
+          throw new Error("Pod returned an object not authorized by its owner");
         }
-      }
-    } catch (e) {
-      yield {
-        error: true,
-        message: e!.toString(),
-        pod,
-      };
-    }
-  }
-
-  async *discoverLocalChanges(
-    channels: string[],
-    options?: {
-      schema?: JSONSchema4;
-      ifModifiedSince?: Date;
-    },
-  ): AsyncGenerator<GraffitiObject, void, void> {
-    for await (const object of this.localChanges.discover(channels, options)) {
-      yield object;
-    }
-  }
-
-  async *discover(
-    channels: string[],
-    options?: {
-      pods?: string[];
-      schema?: JSONSchema4;
-      ifModifiedSince?: Date;
-      fetch?: typeof fetch;
-    },
-  ): AsyncGenerator<
-    | {
-        error: false;
-        value: GraffitiObject;
-      }
-    | {
-        error: true;
-        message: string;
-        pod?: string;
+        return object;
       },
-    void,
-    void
-  > {
-    let pods = options?.pods;
-
-    // Try adding pods
-    if (!pods) {
-      const myPods = new Set<string>();
-
-      const homePod = this.whichPod();
-      if (homePod) myPods.add(homePod);
-
-      const webId = this.whichWebId();
-      if (webId) {
-        (await this.delegation.getPods(webId)).forEach((pod) =>
-          myPods.add(pod),
-        );
-      }
-
-      if (myPods.size > 0) {
-        pods = Array.from(myPods);
-      }
-    }
-
-    if (!pods) {
-      yield {
-        error: true,
-        message:
-          "At this time, the DHT is not active and a list of pods must be provided",
-      };
-      return;
-    }
-    const iterators = pods.map((pod) =>
-      this.discoverFromSinglePod(channels, pod, options),
+      options,
     );
-    for await (const object of Repeater.merge(iterators)) {
-      yield object;
-    }
   }
 }

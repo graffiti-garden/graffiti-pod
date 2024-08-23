@@ -3,7 +3,10 @@ import { randomLocation, randomString } from "./test-utils";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 
 it("url and location", async () => {
-  const location = randomLocation(randomString(), randomString());
+  const location = randomLocation(
+    randomString(),
+    `http://${randomString()}.com`,
+  );
   const url = locationToUrl(location);
   const location2 = urlToLocation(url);
   expect(location).toEqual(location2);
@@ -28,7 +31,10 @@ it("parse url encoded", async () => {
 });
 
 it("location or url is location", async () => {
-  const location = randomLocation(randomString(), randomString());
+  const location = randomLocation(
+    randomString(),
+    `http://${randomString()}.com`,
+  );
   const parsed = parseLocationOrUrl(location);
   expect(parsed.location).toEqual(location);
   expect(parsed.url).toBe(locationToUrl(location));

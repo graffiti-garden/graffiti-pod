@@ -17,14 +17,10 @@ const POD_PREDICATE = "https://graffiti.garden/ns/graffitiPod";
 export default class Delegation {
   private readonly podCache = new Map<string, string[]>();
 
-  fetch: typeof fetch = fetch;
-  setFetch(fetch_?: typeof fetch) {
-    this.fetch = fetch_ ?? fetch;
-  }
   private whichOptions(options?: { fetch?: typeof fetch }) {
     return {
       ...options,
-      fetch: options?.fetch ?? this.fetch,
+      fetch: options?.fetch ?? fetch,
     };
   }
 

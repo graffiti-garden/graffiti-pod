@@ -24,7 +24,7 @@ export type GraffitiObject = GraffitiLocalObject &
 export function locationToUrl(object: GraffitiObject): string;
 export function locationToUrl(location: GraffitiLocation): string;
 export function locationToUrl(location: GraffitiLocation) {
-  const base = location.pod.replace(/\/+$/, "");
+  const base = new URL(location.pod).origin;
   return `${base}/${encodeURIComponent(location.webId)}/${encodeURIComponent(location.name)}`;
 }
 

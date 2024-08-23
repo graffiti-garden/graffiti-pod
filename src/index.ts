@@ -231,7 +231,13 @@ export default class GraffitiClient {
     void,
     void
   > {
-    pod = pod.replace(/\/+$/, "");
+    try {
+      pod = new URL(pod).origin;
+    } catch (e) {
+      yield { error: true, message: e!.toString(), pod };
+      return;
+    }
+
     try {
       for await (const resultString of this.linesFeed.fetch(
         this.whichFetch(options),
@@ -374,7 +380,12 @@ export default class GraffitiClient {
     void,
     void
   > {
-    pod = pod.replace(/\/+$/, "");
+    try {
+      pod = new URL(pod).origin;
+    } catch (e) {
+      yield { error: true, message: e!.toString(), pod };
+      return;
+    }
     const url = encodeQueryParams(pod + "/discover", {
       channels,
       schema: options?.schema,

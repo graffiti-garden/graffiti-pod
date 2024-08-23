@@ -4,7 +4,7 @@ export default class LinesFeed {
   private decoder = new TextDecoder();
   // TODO: make this persistent
   private cache = new Map<string, { lastModified: Date; lines: string[] }>();
-  private locks = new Map<string, Promise<void>>();
+  private locks = new Map<string, Promise<string[]>>();
 
   async *parseResponse(response: Response): AsyncGenerator<string, void, void> {
     if (response.status === 204 || response.status === 304) {
@@ -54,15 +54,23 @@ export default class LinesFeed {
     url: string,
     ifModifiedSince?: Date,
   ): AsyncGenerator<string, void, void> {
-    while (this.locks.has(url)) await this.locks.get(url);
+    // Share the results of concurrent requests
+    const lock = this.locks.get(url);
+    if (lock) {
+      const lines = await lock;
+      for (const line of lines) {
+        yield line;
+      }
+      return;
+    }
 
-    let resolveLock = () => {};
+    let resolveLock = (lines: string[]) => {};
     this.locks.set(
       url,
       new Promise((resolve) => {
-        resolveLock = () => {
+        resolveLock = (lines: string[]) => {
           this.locks.delete(url);
-          resolve();
+          resolve(lines);
         };
       }),
     );
@@ -93,7 +101,7 @@ export default class LinesFeed {
         },
       });
     } catch (e) {
-      resolveLock();
+      resolveLock([]);
       throw e;
     }
 
@@ -106,28 +114,28 @@ export default class LinesFeed {
     try {
       for await (const line of this.parseResponse(response)) {
         newLines.push(line);
-        yield line;
       }
     } catch (e) {
-      resolveLock();
+      resolveLock([]);
       throw e;
     }
 
-    for (const line of cachedLines) {
-      yield line;
-    }
-
+    const lines = [...newLines, ...cachedLines];
     const lastModifiedHeader = response.headers.get("Last-Modified");
     if (lastModifiedHeader) {
       const lastModified = new Date(lastModifiedHeader);
       if (!Number.isNaN(lastModified.getTime())) {
         this.cache.set(url, {
           lastModified,
-          lines: [...newLines, ...cachedLines],
+          lines,
         });
       }
     }
 
-    resolveLock();
+    resolveLock(lines);
+
+    for (const line of lines) {
+      yield line;
+    }
   }
 }

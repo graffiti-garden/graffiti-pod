@@ -315,6 +315,28 @@ it("query multiple times", async () => {
   expect(await iterator3.next()).toHaveProperty("done", true);
 });
 
+it("concurrent queries", async () => {
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  const channels = [randomString(), randomString()];
+  const value = randomValue();
+  await graffiti.put({ value, channels }, location, { fetch });
+
+  const iterator1 = graffiti.discover(channels, { pods: [homePod], fetch });
+  const iterator2 = graffiti.discover(channels, { pods: [homePod], fetch });
+  const iterator3 = graffiti.discover(channels, { pods: [homePod], fetch });
+
+  const [result1, result2, result3] = await Promise.all([
+    iterator1.next(),
+    iterator2.next(),
+    iterator3.next(),
+  ]);
+  expect(result1).toEqual(result2);
+  expect(result1).toEqual(result3);
+  if (result1.value?.error) throw new Error();
+  expect(result1.value?.value.value).toEqual(value);
+});
+
 // it("query with skip", async () => {
 //   const graffiti = new GraffitiClient();
 //   const channels = [randomString(), randomString()];

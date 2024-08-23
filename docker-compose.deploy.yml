@@ -16,4 +16,4 @@ services:
       - /etc/letsencrypt/:/etc/letsencrypt/:ro
 
   graffiti-pod:
-    entrypoint: ["npm", "run", "start"]
+    entrypoint: ["npm", "run", "start:prod"]

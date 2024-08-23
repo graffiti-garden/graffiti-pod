@@ -16,6 +16,8 @@ const headers = [
   "Range",
   "Cache-Control",
   "Vary",
+  "A-IM",
+  "IM",
 ];
 
 async function bootstrap() {

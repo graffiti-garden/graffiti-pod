@@ -72,7 +72,8 @@ export default class Delegation {
 
   private extractAndCachePods(webId: string, profileThing: ThingPersisted) {
     const pods = getUrlAll(profileThing, POD_PREDICATE);
-    this.podCache.set(webId, pods);
+    const uniquePods = Array.from(new Set(pods));
+    this.podCache.set(webId, uniquePods);
     return pods;
   }
 
@@ -106,6 +107,7 @@ export default class Delegation {
       fetch?: typeof fetch;
     },
   ) {
+    pod = new URL(pod).origin;
     const { profile, profileThing } = await this.getProfile(webId, options);
     if (getUrlAll(profileThing, POD_PREDICATE).includes(pod)) {
       return;

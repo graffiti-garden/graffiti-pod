@@ -62,10 +62,22 @@ export default class LinesFeed {
     options?: {
       ifModifiedSince?: Date;
       fetch?: typeof fetch;
+      webId?: string;
     },
   ): AsyncGenerator<string, void, void> {
+    if (options?.fetch && !options.webId) {
+      throw new Error(
+        "you must supply a webId when using an authenticated fetch function for cache control",
+      );
+    }
+
+    const cacheKey = JSON.stringify({
+      url,
+      webId: options?.webId,
+    });
+
     // Share the results of concurrent requests
-    const lock = this.locks.get(url);
+    const lock = this.locks.get(cacheKey);
     if (lock) {
       const lines = await lock;
       for (const line of lines) {
@@ -74,12 +86,12 @@ export default class LinesFeed {
       return;
     }
 
-    let resolveLock = (lines: string[]) => {};
+    let resolveLock: (lines: string[]) => void = () => {};
     this.locks.set(
-      url,
+      cacheKey,
       new Promise((resolve) => {
         resolveLock = (lines: string[]) => {
-          this.locks.delete(url);
+          this.locks.delete(cacheKey);
           resolve(lines);
         };
       }),
@@ -91,11 +103,11 @@ export default class LinesFeed {
     if (options?.ifModifiedSince) {
       lastModified = options?.ifModifiedSince;
     } else {
-      const cached = this.cache.get(url);
+      const cached = this.cache.get(cacheKey);
       if (cached) {
         const expires = cached.expires;
         if (expires && new Date() > expires) {
-          this.cache.delete(url);
+          this.cache.delete(cacheKey);
         } else {
           lastModified = cached.lastModified;
           cachedLines = cached.lines;
@@ -121,7 +133,7 @@ export default class LinesFeed {
     }
 
     if (response.status === 200 || response.status === 204) {
-      this.cache.delete(url);
+      this.cache.delete(cacheKey);
       cachedLines = [];
     }
 
@@ -162,7 +174,7 @@ export default class LinesFeed {
     }
 
     if (lastModifiedNew) {
-      this.cache.set(url, {
+      this.cache.set(cacheKey, {
         lastModified: lastModifiedNew,
         expires,
         lines,

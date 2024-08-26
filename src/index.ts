@@ -209,6 +209,7 @@ export default class GraffitiClient {
   listChannels(options?: {
     pods?: string[];
     fetch?: typeof fetch;
+    webId?: string;
     ifModifiedSince?: Date;
   }) {
     return this.linesFeed.streamMultiple(
@@ -231,6 +232,7 @@ export default class GraffitiClient {
   listOrphans(options?: {
     pods?: string[];
     fetch?: typeof fetch;
+    webId?: string;
     ifModifiedSince?: Date;
   }) {
     return this.linesFeed.streamMultiple(
@@ -267,6 +269,7 @@ export default class GraffitiClient {
       schema?: JSONSchema4;
       ifModifiedSince?: Date;
       fetch?: typeof fetch;
+      webId?: string;
     },
   ) {
     const urlPath = encodeQueryParams("discover", {

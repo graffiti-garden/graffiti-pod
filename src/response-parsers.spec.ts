@@ -56,7 +56,7 @@ it("parse put response", async () => {
   const location = randomLocation(randomString(), randomString());
   const parsed = await parseGraffitiObjectResponse(response, location, false);
   expect(parsed.tombstone).toBe(true);
-  expect(parsed.value).toBe(null);
+  expect(parsed.value).toBeUndefined();
   expect(parsed.channels).toEqual([]);
   expect(parsed.lastModified.getTime()).toBeNaN();
   expect(parsed).toMatchObject(location);
@@ -115,7 +115,7 @@ it("parse no channels or acl or value or timestamp", async () => {
   const location = randomLocation(randomString(), randomString());
   const parsed = await parseGraffitiObjectResponse(response, location, true);
   expect(parsed.tombstone).toBe(false);
-  expect(parsed.value).toBe(null);
+  expect(parsed.value).toBeUndefined();
   expect(parsed.channels).toEqual([]);
   expect(parsed.acl).toEqual(undefined);
   expect(parsed.lastModified.getTime()).toBeNaN();

@@ -70,6 +70,7 @@ it("parse huuuge values", async () => {
       status: 226,
       headers: {
         IM: "prepend",
+        "cache-control": "im",
       },
     },
   );

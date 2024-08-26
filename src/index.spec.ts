@@ -21,7 +21,7 @@ it("Put, replace, delete", async () => {
   const previous = await graffiti.put({ value, channels: [] }, location, {
     fetch,
   });
-  expect(previous.value).toBeNull();
+  expect(previous.value).toBeUndefined();
   expect(previous.name).toEqual(location.name);
   expect(previous.webId).toEqual(location.webId);
   expect(previous.pod).toEqual(location.pod);

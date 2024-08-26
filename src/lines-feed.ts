@@ -4,7 +4,10 @@ import { Repeater } from "@repeaterjs/repeater";
 export default class LinesFeed {
   private decoder = new TextDecoder();
   // TODO: make this persistent
-  private cache = new Map<string, { lastModified: Date; lines: string[] }>();
+  private cache = new Map<
+    string,
+    { lastModified: Date; expires: Date | undefined; lines: string[] }
+  >();
   private locks = new Map<string, Promise<string[]>>();
 
   async *parseResponse(response: Response): AsyncGenerator<string, void, void> {
@@ -21,6 +24,10 @@ export default class LinesFeed {
       const im = response.headers.get("IM");
       if (!im || !im.includes("prepend")) {
         throw new Error("Unrecognized instance manipulation for delta updates");
+      }
+      const cacheControl = response.headers.get("Cache-Control");
+      if (!cacheControl || !cacheControl.includes("im")) {
+        throw new Error("Missing Cache-Control 'im' header for delta updates");
       }
     }
     const reader = response.body?.getReader();
@@ -86,8 +93,13 @@ export default class LinesFeed {
     } else {
       const cached = this.cache.get(url);
       if (cached) {
-        lastModified = cached.lastModified;
-        cachedLines = cached.lines;
+        const expires = cached.expires;
+        if (expires && new Date() > expires) {
+          this.cache.delete(url);
+        } else {
+          lastModified = cached.lastModified;
+          cachedLines = cached.lines;
+        }
       }
     }
 
@@ -124,15 +136,37 @@ export default class LinesFeed {
     }
 
     const lines = [...newLines, ...cachedLines];
-    const lastModifiedHeader = response.headers.get("Last-Modified");
-    if (lastModifiedHeader) {
-      const lastModified = new Date(lastModifiedHeader);
+
+    let lastModifiedNew: Date | undefined = undefined;
+    const lastModifiedString = response.headers.get("Last-Modified");
+    if (lastModifiedString) {
+      const lastModified = new Date(lastModifiedString);
       if (!Number.isNaN(lastModified.getTime())) {
-        this.cache.set(url, {
-          lastModified,
-          lines,
-        });
+        lastModifiedNew = lastModified;
       }
+    }
+
+    let expires: Date | undefined = undefined;
+    const maxAgeString = response.headers
+      .get("Cache-Control")
+      ?.split(",")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("max-age="))
+      ?.split("=")[1];
+    if (maxAgeString !== undefined) {
+      const maxAgeSeconds = parseInt(maxAgeString, 10);
+      if (!Number.isNaN(maxAgeSeconds) && maxAgeSeconds > 0) {
+        const now = new Date();
+        expires = new Date(now.getTime() + maxAgeSeconds * 1000);
+      }
+    }
+
+    if (lastModifiedNew) {
+      this.cache.set(url, {
+        lastModified: lastModifiedNew,
+        expires,
+        lines,
+      });
     }
 
     resolveLock(lines);

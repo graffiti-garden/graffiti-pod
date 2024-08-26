@@ -2,4 +2,4 @@
 
 - more testing
 - local changes for listChannels / listOphans
-- persist the cache across reloads
+- persist the cache across reloads + cache purging

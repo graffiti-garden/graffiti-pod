@@ -34,11 +34,11 @@ export async function parseGraffitiObjectResponse(
     throw await parseErrorResponse(response);
   }
 
-  let value: any;
+  let value: {} | undefined;
   try {
     value = await response.json();
   } catch (e) {
-    value = null;
+    value = undefined;
   }
   return {
     webId: location.webId,

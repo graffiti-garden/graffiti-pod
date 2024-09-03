@@ -146,15 +146,15 @@ export default class GraffitiClient {
 
   async delete(
     location: GraffitiLocation,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async delete(
     url: string,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async delete(
     locationOrUrl: GraffitiLocation | string,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     const response = await this.whichFetch(options)(url, {
@@ -172,17 +172,17 @@ export default class GraffitiClient {
   async patch(
     patch: GraffitiPatch,
     location: GraffitiLocation,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async patch(
     patch: GraffitiPatch,
     url: string,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async patch(
     patch: GraffitiPatch,
     locationOrUrl: GraffitiLocation | string,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
 
@@ -204,10 +204,10 @@ export default class GraffitiClient {
     return oldObject;
   }
 
-  listChannels(options?: {
-    pods?: string[];
-    fetch?: typeof fetch;
-    webId?: string;
+  listChannels(options: {
+    pods: string[];
+    fetch: typeof fetch;
+    webId: string;
     ifModifiedSince?: Date;
   }) {
     return this.linesFeed.streamMultiple(
@@ -227,10 +227,10 @@ export default class GraffitiClient {
     );
   }
 
-  listOrphans(options?: {
-    pods?: string[];
-    fetch?: typeof fetch;
-    webId?: string;
+  listOrphans(options: {
+    pods: string[];
+    fetch: typeof fetch;
+    webId: string;
     ifModifiedSince?: Date;
   }) {
     return this.linesFeed.streamMultiple(
@@ -262,10 +262,10 @@ export default class GraffitiClient {
 
   discover(
     channels: string[],
-    options?: {
-      pods?: string[];
+    options: {
       schema?: JSONSchema4;
       ifModifiedSince?: Date;
+      pods: string[];
       fetch?: typeof fetch;
       webId?: string;
     },

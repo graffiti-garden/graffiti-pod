@@ -50,44 +50,40 @@ export default class GraffitiClient {
 
   async put(
     object: GraffitiLocalObject,
-    location?: GraffitiLocation,
+    location: GraffitiLocation,
     options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    partialLocation: {
-      name?: string;
-      pod?: string;
-      webId?: string;
-    },
+    url: string,
+    options?: { fetch?: typeof fetch },
+  ): Promise<GraffitiObject>;
+  async put(
+    object: GraffitiLocalObject,
     options?: { fetch?: typeof fetch; pod?: string; webId?: string },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    url?: string,
-    options?: { fetch?: typeof fetch; pod?: string; webId?: string },
-  ): Promise<GraffitiObject>;
-  async put(
-    object: GraffitiLocalObject,
-    locationOrUrl?: string | { name?: string; pod?: string; webId?: string },
-    options?: { fetch?: typeof fetch; pod?: string; webId?: string },
+    locationOrUrlOrOptions?:
+      | string
+      | { name?: string; pod?: string; webId?: string; fetch?: typeof fetch },
+    options?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
     let location: GraffitiLocation;
     let url: string;
+    let fetch = this.whichFetch(options);
 
-    if (typeof locationOrUrl === "string") {
-      const parsed = parseLocationOrUrl(locationOrUrl);
+    if (typeof locationOrUrlOrOptions === "string") {
+      const parsed = parseLocationOrUrl(locationOrUrlOrOptions);
       location = parsed.location;
       url = parsed.url;
     } else {
-      let { webId, name, pod } = locationOrUrl ?? {};
-      webId = webId ?? options?.webId;
+      let { webId, name, pod, fetch: fetch_ } = locationOrUrlOrOptions ?? {};
       if (!webId) {
         throw new Error(
           "no webId provided to PUT either via the location or options.",
         );
       }
-      pod = pod ?? options?.pod;
       if (!pod) {
         throw new Error(
           "no pod provided to PUT either via the location or options.",
@@ -105,6 +101,8 @@ export default class GraffitiClient {
 
       location = { webId, pod, name };
       url = this.locationToUrl(location);
+
+      if (fetch_) fetch = fetch_;
     }
 
     await this.delegation.addPod(location.webId, location.pod, options);
@@ -112,7 +110,7 @@ export default class GraffitiClient {
     encodeJSONBody(requestInit, object.value);
 
     url = encodeQueryParams(url, object);
-    const response = await this.whichFetch(options)(url, requestInit);
+    const response = await fetch(url, requestInit);
     const oldObject = await parseGraffitiObjectResponse(
       response,
       location,

@@ -710,7 +710,6 @@ it("put with random name", async () => {
 
   const putted = await graffiti.put(
     { value, channels: [], acl: [] },
-    {},
     {
       webId,
       fetch,

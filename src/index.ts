@@ -51,23 +51,23 @@ export default class GraffitiClient {
   async put(
     object: GraffitiLocalObject,
     location: GraffitiLocation,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
     url: string,
-    options?: { fetch?: typeof fetch },
+    options: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    options?: { fetch?: typeof fetch; pod?: string; webId?: string },
+    options: { fetch: typeof fetch; pod: string; webId: string },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    locationOrUrlOrOptions?:
+    locationOrUrlOrOptions:
       | string
-      | { name?: string; pod?: string; webId?: string; fetch?: typeof fetch },
-    options?: { fetch?: typeof fetch },
+      | { name?: string; pod: string; webId: string; fetch?: typeof fetch },
+    options?: { fetch: typeof fetch },
   ): Promise<GraffitiObject> {
     let location: GraffitiLocation;
     let url: string;

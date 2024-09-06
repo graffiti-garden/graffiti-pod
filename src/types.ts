@@ -1,6 +1,5 @@
 import { type JTDDataType } from "ajv/dist/core";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
-import type { JSONSchema4 } from "json-schema";
 
 export type GraffitiObject = {
   value?: {};

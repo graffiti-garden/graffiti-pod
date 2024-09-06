@@ -6,7 +6,7 @@ import type {
   GraffitiObjectTyped,
 } from "./types";
 import { applyPatch } from "fast-json-patch";
-import { type JSONSchema4 } from "json-schema";
+import type { JSONSchema4 } from "json-schema";
 import Ajv from "ajv";
 
 type LocalChangeEvent = CustomEvent<{

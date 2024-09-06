@@ -6,7 +6,7 @@ import type {
   GraffitiPatch,
   GraffitiObjectTyped,
 } from "./types";
-import { type JSONSchema4 } from "json-schema";
+import type { JSONSchema4 } from "json-schema";
 import { parseGraffitiObjectResponse } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import { encodeJSONBody, encodeQueryParams } from "./header-encoders";

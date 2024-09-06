@@ -23,14 +23,16 @@ export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
 export default class GraffitiClient {
   readonly delegation = new Delegation();
   private readonly linesFeed = new LinesFeed();
-  private readonly localChanges = new LocalChanges();
-  private readonly validateGraffitiObject = new Ajv().compile(
+  private ajv = new Ajv({
+    strictTypes: false,
+  });
+  private readonly localChanges = new LocalChanges(this.ajv);
+  private readonly validateGraffitiObject = this.ajv.compile(
     GRAFFITI_OBJECT_SCHEMA,
   );
-  private readonly validateOrphanResult = new Ajv().compile(
-    ORPHAN_RESULT_SCHEMA,
-  );
-  private readonly validateChannelResult = new Ajv().compile(
+  private readonly validateOrphanResult =
+    this.ajv.compile(ORPHAN_RESULT_SCHEMA);
+  private readonly validateChannelResult = this.ajv.compile(
     CHANNEL_RESULT_SCHEMA,
   );
 
@@ -250,20 +252,20 @@ export default class GraffitiClient {
     );
   }
 
-  discoverLocalChanges(
+  discoverLocalChanges<T>(
     channels: string[],
+    schema: JSONSchema4 & T,
     options?: {
-      schema?: JSONSchema4;
       ifModifiedSince?: Date;
     },
   ) {
-    return this.localChanges.discover(channels, options);
+    return this.localChanges.discover(channels, schema, options);
   }
 
-  discover(
+  discover<T>(
     channels: string[],
+    schema: JSONSchema4 & T,
     options: {
-      schema?: JSONSchema4;
       ifModifiedSince?: Date;
       pods: string[];
       fetch?: typeof fetch;
@@ -272,8 +274,10 @@ export default class GraffitiClient {
   ) {
     const urlPath = encodeQueryParams("discover", {
       channels,
-      schema: options?.schema,
+      schema,
     });
+
+    const validate = this.ajv.compile(schema as T & {});
 
     return this.linesFeed.streamMultiple(
       urlPath,
@@ -288,6 +292,10 @@ export default class GraffitiClient {
           pod,
           lastModified: new Date(partial.lastModified),
         };
+
+        if (!validate(object)) {
+          throw new Error("Object does match schema");
+        }
 
         if (
           !(await this.delegation.hasPod(object.webId, object.pod, options))

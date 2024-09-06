@@ -1,13 +1,13 @@
 import { Repeater } from "@repeaterjs/repeater";
-import {
+import type {
   GraffitiLocalObject,
-  GraffitiLocation,
   GraffitiObject,
   GraffitiPatch,
 } from "./types";
 import { applyPatch } from "fast-json-patch";
 import { type JSONSchema4 } from "json-schema";
 import Ajv from "ajv";
+import { type JTDDataType } from "ajv/dist/core";
 
 type LocalChangeEvent = CustomEvent<{
   oldObject: GraffitiObject;
@@ -24,15 +24,13 @@ export default class LocalChanges {
     object: GraffitiObject,
     options: {
       channels: string[];
-      validate?: (object: GraffitiObject) => boolean;
       ifModifiedSince?: Date;
     },
   ): boolean {
     return (
       (!options.ifModifiedSince ||
         object.lastModified >= options.ifModifiedSince) &&
-      object.channels.some((channel) => options.channels.includes(channel)) &&
-      (!options.validate || options.validate(object))
+      object.channels.some((channel) => options.channels.includes(channel))
     );
   }
 
@@ -78,36 +76,43 @@ export default class LocalChanges {
     this.dispatchChanges(oldObject);
   }
 
-  async *discover(
+  discover<T>(
     channels: string[],
-    options?: { schema?: JSONSchema4; ifModifiedSince?: Date },
-  ): AsyncGenerator<GraffitiObject, void, void> {
-    const validate = options?.schema
-      ? this.ajv.compile(options.schema)
-      : undefined;
+    schema: JSONSchema4 & T,
+    options?: {
+      ifModifiedSince?: Date;
+    },
+  ): AsyncGenerator<GraffitiObject & JTDDataType<T & {}>, void, void> {
+    const validate = this.ajv.compile(schema as T & {});
     const matchOptions = {
-      validate,
       ifModifiedSince: options?.ifModifiedSince,
       channels,
     };
-    const repeater = new Repeater<GraffitiObject>(async (push, stop) => {
-      const callback = (event: LocalChangeEvent) => {
-        const { oldObject, newObject } = event.detail;
+    const repeater = new Repeater<GraffitiObject & JTDDataType<T & {}>>(
+      async (push, stop) => {
+        const callback = (event: LocalChangeEvent) => {
+          const { oldObject, newObject } = event.detail;
 
-        if (newObject && this.matchObject(newObject, matchOptions)) {
-          push(newObject);
-        } else if (this.matchObject(oldObject, matchOptions)) {
-          push(oldObject);
-        }
-      };
+          if (
+            newObject &&
+            this.matchObject(newObject, matchOptions) &&
+            validate(newObject)
+          ) {
+            push(newObject);
+          } else if (
+            this.matchObject(oldObject, matchOptions) &&
+            validate(oldObject)
+          ) {
+            push(oldObject);
+          }
+        };
 
-      this.changes.addEventListener("change", callback as EventListener);
-      await stop;
-      this.changes.removeEventListener("change", callback as EventListener);
-    });
+        this.changes.addEventListener("change", callback as EventListener);
+        await stop;
+        this.changes.removeEventListener("change", callback as EventListener);
+      },
+    );
 
-    for await (const object of repeater) {
-      yield object;
-    }
+    return repeater;
   }
 }

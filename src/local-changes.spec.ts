@@ -58,32 +58,14 @@ it("match ifModifiedSince", () => {
   ).toBe(false);
 });
 
-it("match validation function", () => {
-  const localChanges = new LocalChanges();
-  const object: GraffitiObject = randomGraffitiObject();
-
-  expect(
-    localChanges.matchObject(object, {
-      channels: object.channels,
-      validate: () => true,
-    }),
-  ).toBe(true);
-  expect(
-    localChanges.matchObject(object, {
-      channels: object.channels,
-      validate: () => false,
-    }),
-  ).toBe(false);
-});
-
 it("put", async () => {
   const localChanges = new LocalChanges();
   const beforeChannel = randomString();
-  const before = localChanges.discover([beforeChannel]).next();
+  const before = localChanges.discover([beforeChannel], {}).next();
   const afterChannel = randomString();
-  const after = localChanges.discover([afterChannel]).next();
+  const after = localChanges.discover([afterChannel], {}).next();
   const sharedChannel = randomString();
-  const shared = localChanges.discover([sharedChannel]).next();
+  const shared = localChanges.discover([sharedChannel], {}).next();
 
   const oldObject: GraffitiObject = randomGraffitiObject();
   oldObject.channels = [beforeChannel, sharedChannel];
@@ -110,11 +92,11 @@ it("put", async () => {
 it("patch", async () => {
   const localChanges = new LocalChanges();
   const beforeChannel = randomString();
-  const before = localChanges.discover([beforeChannel]).next();
+  const before = localChanges.discover([beforeChannel], {}).next();
   const afterChannel = randomString();
-  const after = localChanges.discover([afterChannel]).next();
+  const after = localChanges.discover([afterChannel], {}).next();
   const sharedChannel = randomString();
-  const shared = localChanges.discover([sharedChannel]).next();
+  const shared = localChanges.discover([sharedChannel], {}).next();
 
   const oldObject: GraffitiObject = randomGraffitiObject();
   oldObject.channels = [beforeChannel, sharedChannel];
@@ -161,7 +143,7 @@ it("patch", async () => {
 it("delete", async () => {
   const localChanges = new LocalChanges();
   const channels = [randomString(), randomString(), randomString()];
-  const result = localChanges.discover(channels).next();
+  const result = localChanges.discover(channels, {}).next();
 
   const oldObject: GraffitiObject = randomGraffitiObject();
   oldObject.channels = [randomString(), ...channels.slice(1)];
@@ -175,15 +157,27 @@ it("delete", async () => {
 it("JSON query", async () => {
   const localChanges = new LocalChanges();
   const channels = [randomString(), randomString(), randomString()];
-  const resultNoQuery = localChanges.discover(channels).next();
+  const resultNoQuery = localChanges.discover(channels, {}).next();
   const resultQuery = localChanges
     .discover(channels, {
-      schema: {
-        not: {
+      properties: {
+        value: {
           properties: {
-            value: {
-              required: ["something"],
+            something: {
+              type: "object",
             },
+          },
+          required: ["something"],
+        },
+      },
+    })
+    .next();
+  const resultBadQuery = localChanges
+    .discover(channels, {
+      not: {
+        properties: {
+          value: {
+            required: ["something"],
           },
         },
       },
@@ -205,6 +199,14 @@ it("JSON query", async () => {
 
   localChanges.put(newObject, oldObject);
 
-  expect((await resultNoQuery).value).toEqual(newObject);
-  expect((await resultQuery).value).toEqual(oldObject);
+  const noQueryResult = await resultNoQuery;
+  expect(noQueryResult.value).toEqual(newObject);
+  // This should be a type error
+  // noQueryResult.value?.value.something;
+  const result = await resultQuery;
+  expect(result.value?.value.something).toBeDefined();
+  expect(result.value).toEqual(newObject);
+  // No type error here!
+  expect(result.value?.value.something).toBeDefined();
+  expect((await resultBadQuery).value).toEqual(oldObject);
 });

@@ -277,9 +277,16 @@ export default class GraffitiClient {
     schema: JSONSchema4 & T,
     session: {
       pods: string[];
-      fetch?: typeof fetch;
-      webId?: string;
-    },
+    } & (
+      | {
+          fetch: typeof fetch;
+          webId: string;
+        }
+      | {
+          fetch?: undefined;
+          webId?: undefined;
+        }
+    ),
     options?: {
       ifModifiedSince?: Date;
     },

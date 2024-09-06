@@ -59,17 +59,13 @@ export default class LinesFeed {
 
   async *stream(
     url: string,
-    session: { fetch?: typeof fetch; webId?: string },
+    session:
+      | { fetch: typeof fetch; webId: string }
+      | { fetch?: undefined; webId?: undefined },
     options?: {
       ifModifiedSince?: Date;
     },
   ): AsyncGenerator<string, void, void> {
-    if (session.fetch && !session.webId) {
-      throw new Error(
-        "you must supply a webId when using an authenticated fetch function for cache control",
-      );
-    }
-
     const cacheKey = JSON.stringify({
       url,
       webId: session.webId,
@@ -192,9 +188,13 @@ export default class LinesFeed {
     parser: (line: string, pod: string) => T | Promise<T>,
     session: {
       pods: string[];
-      fetch?: typeof fetch;
-      webId?: string;
-    },
+    } & (
+      | {
+          fetch: typeof fetch;
+          webId: string;
+        }
+      | { fetch?: undefined; webId?: undefined }
+    ),
     options?: {
       ifModifiedSince?: Date;
     },

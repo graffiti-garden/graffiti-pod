@@ -16,9 +16,8 @@ type LocalChangeEvent = CustomEvent<{
 
 export default class LocalChanges {
   readonly changes = new EventTarget();
-  private ajv = new Ajv({
-    strictTypes: false,
-  });
+
+  constructor(private ajv: Ajv = new Ajv()) {}
 
   matchObject(
     object: GraffitiObject,
@@ -62,6 +61,7 @@ export default class LocalChanges {
     for (const prop of ["value", "channels", "acl"] as const) {
       const ops = patch[prop];
       if (!ops || !ops.length) continue;
+      //@ts-ignore
       newObject[prop] = applyPatch(
         newObject[prop],
         ops,

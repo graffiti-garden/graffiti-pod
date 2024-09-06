@@ -4,6 +4,7 @@ import type {
   GraffitiLocation,
   GraffitiObject,
   GraffitiPatch,
+  GraffitiObjectTyped,
 } from "./types";
 import type { JSONSchema4 } from "json-schema";
 import { parseGraffitiObjectResponse } from "./response-parsers";
@@ -18,7 +19,13 @@ import {
   CHANNEL_RESULT_SCHEMA,
 } from "./schemas";
 
-export { GraffitiLocalObject, GraffitiLocation, GraffitiObject, GraffitiPatch };
+export {
+  GraffitiLocalObject,
+  GraffitiLocation,
+  GraffitiObject,
+  GraffitiPatch,
+  GraffitiObjectTyped,
+};
 
 export default class GraffitiClient {
   readonly delegation = new Delegation();

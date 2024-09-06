@@ -3,11 +3,11 @@ import type {
   GraffitiLocalObject,
   GraffitiObject,
   GraffitiPatch,
+  GraffitiObjectTyped,
 } from "./types";
 import { applyPatch } from "fast-json-patch";
 import { type JSONSchema4 } from "json-schema";
 import Ajv from "ajv";
-import { type JTDDataType } from "ajv/dist/core";
 
 type LocalChangeEvent = CustomEvent<{
   oldObject: GraffitiObject;
@@ -80,19 +80,19 @@ export default class LocalChanges {
     this.dispatchChanges(oldObject);
   }
 
-  discover<T>(
+  discover<Schema>(
     channels: string[],
-    schema: JSONSchema4 & T,
+    schema: JSONSchema4 & Schema,
     options?: {
       ifModifiedSince?: Date;
     },
-  ): AsyncGenerator<GraffitiObject & JTDDataType<T & {}>, void, void> {
-    const validate = this.ajv.compile(schema as T & {});
+  ): AsyncGenerator<GraffitiObjectTyped<Schema>, void, void> {
+    const validate = this.ajv.compile(schema as Schema & {});
     const matchOptions = {
       ifModifiedSince: options?.ifModifiedSince,
       channels,
     };
-    const repeater = new Repeater<GraffitiObject & JTDDataType<T & {}>>(
+    const repeater = new Repeater<GraffitiObjectTyped<Schema>>(
       async (push, stop) => {
         const callback = (event: LocalChangeEvent) => {
           const { oldObject, newObject } = event.detail;

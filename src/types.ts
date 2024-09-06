@@ -1,3 +1,4 @@
+import { JTDDataType } from "ajv/dist/core";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
 
 export interface GraffitiLocation {
@@ -20,6 +21,9 @@ export interface GraffitiPatch {
 
 export type GraffitiObject = GraffitiLocalObject &
   GraffitiLocation & { lastModified: Date; tombstone: boolean };
+
+export type GraffitiObjectTyped<Schema> = GraffitiObject &
+  JTDDataType<Schema & {}>;
 
 export function locationToUrl(object: GraffitiObject): string;
 export function locationToUrl(location: GraffitiLocation): string;

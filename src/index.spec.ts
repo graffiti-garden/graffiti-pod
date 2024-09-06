@@ -5,7 +5,7 @@ import {
   randomValue,
   solidLogin,
 } from "./test-utils";
-import GraffitiClient, { GraffitiObject, GraffitiPatch } from ".";
+import GraffitiClient, { type GraffitiObject, type GraffitiPatch } from ".";
 
 const { fetch, webId } = await solidLogin();
 

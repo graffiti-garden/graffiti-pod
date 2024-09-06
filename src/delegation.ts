@@ -9,7 +9,7 @@ import {
   getSourceUrl,
   createThing,
   universalAccess,
-  ThingPersisted,
+  type ThingPersisted,
 } from "@inrupt/solid-client";
 
 const POD_PREDICATE = "https://graffiti.garden/ns/graffitiPod";

@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import LocalChanges from "./local-changes";
 import { randomGraffitiObject, randomString, randomValue } from "./test-utils";
-import { GraffitiLocalObject, GraffitiObject } from "./types";
+import type { GraffitiLocalObject, GraffitiObject } from "./types";
 
 it("match overlapping channels", () => {
   const localChanges = new LocalChanges();

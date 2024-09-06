@@ -6,7 +6,7 @@ import type {
   GraffitiPatch,
   GraffitiObjectTyped,
 } from "./types";
-import type { JSONSchema4 } from "json-schema";
+import { type JSONSchema4 } from "json-schema";
 import { parseGraffitiObjectResponse } from "./response-parsers";
 import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import { encodeJSONBody, encodeQueryParams } from "./header-encoders";
@@ -19,13 +19,8 @@ import {
   CHANNEL_RESULT_SCHEMA,
 } from "./schemas";
 
-export {
-  GraffitiLocalObject,
-  GraffitiLocation,
-  GraffitiObject,
-  GraffitiPatch,
-  GraffitiObjectTyped,
-};
+export type * from "./types";
+export type { JSONSchema4 };
 
 export default class GraffitiClient {
   readonly delegation = new Delegation();

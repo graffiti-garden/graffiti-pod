@@ -1,28 +1,31 @@
 import { JTDDataType } from "ajv/dist/core";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
 
-export interface GraffitiLocation {
-  name: string;
-  webId: string;
-  pod: string;
-}
-
-export interface GraffitiLocalObject {
+export type GraffitiObject = {
   value?: {};
   channels: string[];
   acl?: string[];
-}
+  webId: string;
+  name: string;
+  pod: string;
+  lastModified: Date;
+  tombstone: boolean;
+};
+
+export type GraffitiLocalObject = Pick<
+  GraffitiObject,
+  "value" | "channels" | "acl"
+>;
+
+export type GraffitiLocation = Pick<GraffitiObject, "webId" | "name" | "pod">;
+
+export type GraffitiObjectTyped<Schema> = GraffitiObject & JTDDataType<Schema>;
 
 export interface GraffitiPatch {
   value?: JSONPatchOperation[];
   channels?: JSONPatchOperation[];
   acl?: JSONPatchOperation[];
 }
-
-export type GraffitiObject = GraffitiLocalObject &
-  GraffitiLocation & { lastModified: Date; tombstone: boolean };
-
-export type GraffitiObjectTyped<Schema> = GraffitiObject & JTDDataType<Schema>;
 
 export function locationToUrl(object: GraffitiObject): string;
 export function locationToUrl(location: GraffitiLocation): string;

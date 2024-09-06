@@ -46,49 +46,49 @@ export default class GraffitiClient {
     return urlToLocation(url);
   }
 
-  private whichFetch(options?: { fetch?: typeof fetch }) {
-    return options?.fetch ?? fetch;
+  private whichFetch(session?: { fetch?: typeof fetch }) {
+    return session?.fetch ?? fetch;
   }
 
   async put(
     object: GraffitiLocalObject,
     location: GraffitiLocation,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
     url: string,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    options: { fetch: typeof fetch; pod: string; webId: string },
+    session: { fetch: typeof fetch; pod: string; webId: string },
   ): Promise<GraffitiObject>;
   async put(
     object: GraffitiLocalObject,
-    locationOrUrlOrOptions:
+    locationOrUrlOrSession:
       | string
       | { name?: string; pod: string; webId: string; fetch?: typeof fetch },
-    options?: { fetch: typeof fetch },
+    session?: { fetch: typeof fetch },
   ): Promise<GraffitiObject> {
     let location: GraffitiLocation;
     let url: string;
-    let fetch = this.whichFetch(options);
+    let fetch = this.whichFetch(session);
 
-    if (typeof locationOrUrlOrOptions === "string") {
-      const parsed = parseLocationOrUrl(locationOrUrlOrOptions);
+    if (typeof locationOrUrlOrSession === "string") {
+      const parsed = parseLocationOrUrl(locationOrUrlOrSession);
       location = parsed.location;
       url = parsed.url;
     } else {
-      let { webId, name, pod, fetch: fetch_ } = locationOrUrlOrOptions ?? {};
+      let { webId, name, pod, fetch: fetch_ } = locationOrUrlOrSession ?? {};
       if (!webId) {
         throw new Error(
-          "no webId provided to PUT either via the location or options.",
+          "no webId provided to PUT either via the location or session.",
         );
       }
       if (!pod) {
         throw new Error(
-          "no pod provided to PUT either via the location or options.",
+          "no pod provided to PUT either via the location or session.",
         );
       }
 
@@ -107,7 +107,7 @@ export default class GraffitiClient {
       if (fetch_) fetch = fetch_;
     }
 
-    await this.delegation.addPod(location.webId, location.pod, options);
+    await this.delegation.addPod(location.webId, location.pod, session);
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
 
@@ -124,42 +124,42 @@ export default class GraffitiClient {
 
   async get(
     location: GraffitiLocation,
-    options?: { fetch?: typeof fetch },
+    session?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject>;
   async get(
     url: string,
-    options?: { fetch?: typeof fetch },
+    session?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject>;
   async get(
     locationOrUrl: GraffitiLocation | string,
-    options?: { fetch?: typeof fetch },
+    session?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     if (
-      !(await this.delegation.hasPod(location.webId, location.pod, options))
+      !(await this.delegation.hasPod(location.webId, location.pod, session))
     ) {
       throw new Error(
         `The Graffiti pod ${location.pod} is not registered with the WebID ${location.webId}`,
       );
     }
-    const response = await this.whichFetch(options)(url);
+    const response = await this.whichFetch(session)(url);
     return parseGraffitiObjectResponse(response, location, true);
   }
 
   async delete(
     location: GraffitiLocation,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async delete(
     url: string,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async delete(
     locationOrUrl: GraffitiLocation | string,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
-    const response = await this.whichFetch(options)(url, {
+    const response = await this.whichFetch(session)(url, {
       method: "DELETE",
     });
     const oldObject = await parseGraffitiObjectResponse(
@@ -174,17 +174,17 @@ export default class GraffitiClient {
   async patch(
     patch: GraffitiPatch,
     location: GraffitiLocation,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async patch(
     patch: GraffitiPatch,
     url: string,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async patch(
     patch: GraffitiPatch,
     locationOrUrl: GraffitiLocation | string,
-    options: { fetch: typeof fetch },
+    session: { fetch: typeof fetch },
   ): Promise<GraffitiObject> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
 
@@ -196,7 +196,7 @@ export default class GraffitiClient {
       channels: patch.channels?.map((p) => JSON.stringify(p)),
       acl: patch.acl?.map((p) => JSON.stringify(p)),
     });
-    const response = await this.whichFetch(options)(urlWithQuery, requestInit);
+    const response = await this.whichFetch(session)(urlWithQuery, requestInit);
     const oldObject = await parseGraffitiObjectResponse(
       response,
       location,
@@ -206,12 +206,16 @@ export default class GraffitiClient {
     return oldObject;
   }
 
-  listChannels(options: {
-    pods: string[];
-    fetch: typeof fetch;
-    webId: string;
-    ifModifiedSince?: Date;
-  }) {
+  listChannels(
+    session: {
+      pods: string[];
+      fetch: typeof fetch;
+      webId: string;
+    },
+    options?: {
+      ifModifiedSince?: Date;
+    },
+  ) {
     return this.linesFeed.streamMultiple(
       "list-channels",
       (line, pod) => {
@@ -225,16 +229,21 @@ export default class GraffitiClient {
           pod,
         };
       },
+      session,
       options,
     );
   }
 
-  listOrphans(options: {
-    pods: string[];
-    fetch: typeof fetch;
-    webId: string;
-    ifModifiedSince?: Date;
-  }) {
+  listOrphans(
+    session: {
+      pods: string[];
+      fetch: typeof fetch;
+      webId: string;
+    },
+    options?: {
+      ifModifiedSince?: Date;
+    },
+  ) {
     return this.linesFeed.streamMultiple(
       "list-orphans",
       (line, pod) => {
@@ -248,6 +257,7 @@ export default class GraffitiClient {
           pod,
         };
       },
+      session,
       options,
     );
   }
@@ -265,11 +275,13 @@ export default class GraffitiClient {
   discover<T>(
     channels: string[],
     schema: JSONSchema4 & T,
-    options: {
-      ifModifiedSince?: Date;
+    session: {
       pods: string[];
       fetch?: typeof fetch;
       webId?: string;
+    },
+    options?: {
+      ifModifiedSince?: Date;
     },
   ) {
     const urlPath = encodeQueryParams("discover", {
@@ -298,12 +310,13 @@ export default class GraffitiClient {
         }
 
         if (
-          !(await this.delegation.hasPod(object.webId, object.pod, options))
+          !(await this.delegation.hasPod(object.webId, object.pod, session))
         ) {
           throw new Error("Pod returned an object not authorized by its owner");
         }
         return object;
       },
+      session,
       options,
     );
   }

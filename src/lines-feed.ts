@@ -59,13 +59,12 @@ export default class LinesFeed {
 
   async *stream(
     url: string,
+    session: { fetch?: typeof fetch; webId?: string },
     options?: {
       ifModifiedSince?: Date;
-      fetch?: typeof fetch;
-      webId?: string;
     },
   ): AsyncGenerator<string, void, void> {
-    if (options?.fetch && !options.webId) {
+    if (session.fetch && !session.webId) {
       throw new Error(
         "you must supply a webId when using an authenticated fetch function for cache control",
       );
@@ -73,7 +72,7 @@ export default class LinesFeed {
 
     const cacheKey = JSON.stringify({
       url,
-      webId: options?.webId,
+      webId: session.webId,
     });
 
     // Share the results of concurrent requests
@@ -117,7 +116,7 @@ export default class LinesFeed {
 
     let response: Response;
     try {
-      response = await (options?.fetch ?? fetch)(url, {
+      response = await (session.fetch ?? fetch)(url, {
         headers: {
           ...(lastModified
             ? {
@@ -191,10 +190,13 @@ export default class LinesFeed {
   streamMultiple<T>(
     urlPath: string,
     parser: (line: string, pod: string) => T | Promise<T>,
-    options?: {
-      pods?: string[];
-      ifModifiedSince?: Date;
+    session: {
+      pods: string[];
       fetch?: typeof fetch;
+      webId?: string;
+    },
+    options?: {
+      ifModifiedSince?: Date;
     },
   ): AsyncGenerator<
     | {
@@ -209,13 +211,8 @@ export default class LinesFeed {
     void,
     void
   > {
-    const pods = options?.pods;
-    if (!pods) {
-      throw new Error("pods must be provided");
-    }
-
     const this_ = this;
-    const iterators = pods.map((pod) => {
+    const iterators = session.pods.map((pod) => {
       // Return type is the same as the return type of the function
       return (async function* (): ReturnType<typeof this_.streamMultiple<T>> {
         let origin: string;
@@ -232,7 +229,7 @@ export default class LinesFeed {
         const url = `${origin}/${urlPath}`;
 
         try {
-          for await (const line of this_.stream(url, options)) {
+          for await (const line of this_.stream(url, session, options)) {
             let value: T;
             try {
               value = await parser(line, pod);

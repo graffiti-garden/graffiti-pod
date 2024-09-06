@@ -275,6 +275,8 @@ it("query with last modified", async () => {
     {},
     {
       pods: [homePod],
+    },
+    {
       ifModifiedSince: new Date(lastModified.getTime() + 1),
     },
   );
@@ -316,6 +318,8 @@ it("query multiple times", async () => {
     {},
     {
       pods: [homePod],
+    },
+    {
       ifModifiedSince: new Date(0),
     },
   );
@@ -514,12 +518,16 @@ it("list orphans with ifModifiedSince", async () => {
   });
   const gotten = await graffiti.get(location, { fetch });
   const now = gotten.lastModified;
-  const orphanIterator = graffiti.listOrphans({
-    fetch,
-    webId,
-    ifModifiedSince: new Date(now.getTime() - 1),
-    pods: [homePod],
-  });
+  const orphanIterator = graffiti.listOrphans(
+    {
+      fetch,
+      webId,
+      pods: [homePod],
+    },
+    {
+      ifModifiedSince: new Date(now.getTime() - 1),
+    },
+  );
   const result = await orphanIterator.next();
   if (result.value?.error) throw new Error();
   expect(result.value?.value.name).toEqual(location.name);
@@ -542,12 +550,16 @@ it("deleted orphan", async () => {
       fetch,
     },
   );
-  const orphanIterator = graffiti.listOrphans({
-    fetch,
-    webId,
-    ifModifiedSince: now,
-    pods: [homePod],
-  });
+  const orphanIterator = graffiti.listOrphans(
+    {
+      fetch,
+      webId,
+      pods: [homePod],
+    },
+    {
+      ifModifiedSince: now,
+    },
+  );
   const result = await orphanIterator.next();
   if (result.value?.error) throw new Error();
   expect(result.value?.value.name).toEqual(location.name);
@@ -630,12 +642,16 @@ it("list channels with ifModifiedSince", async () => {
   }
   const gotten = await graffiti.get(firstPutted!, { fetch });
   const now = gotten.lastModified;
-  const channelIterator = graffiti.listChannels({
-    fetch,
-    webId,
-    pods: [homePod],
-    ifModifiedSince: now,
-  });
+  const channelIterator = graffiti.listChannels(
+    {
+      fetch,
+      webId,
+      pods: [homePod],
+    },
+    {
+      ifModifiedSince: now,
+    },
+  );
   let newChannels: Map<string, number> = new Map();
   for await (const channel of channelIterator) {
     if (channel.error) continue;
@@ -668,12 +684,16 @@ it("list channels with deleted channel", async () => {
     },
   );
 
-  const channelIterator = graffiti.listChannels({
-    pods: [homePod],
-    fetch,
-    webId,
-    ifModifiedSince: now,
-  });
+  const channelIterator = graffiti.listChannels(
+    {
+      pods: [homePod],
+      fetch,
+      webId,
+    },
+    {
+      ifModifiedSince: now,
+    },
+  );
   let newChannels: Map<string, number> = new Map();
   for await (const channel of channelIterator) {
     if (channel.error) continue;
@@ -702,12 +722,16 @@ it("list with good and bad pods", async () => {
   const deleted = await graffiti.delete(putted, { fetch });
   const now = deleted.lastModified;
 
-  const channelIterator = graffiti.listChannels({
-    pods: [...badPods, homePod],
-    fetch,
-    webId,
-    ifModifiedSince: now,
-  });
+  const channelIterator = graffiti.listChannels(
+    {
+      pods: [...badPods, homePod],
+      fetch,
+      webId,
+    },
+    {
+      ifModifiedSince: now,
+    },
+  );
 
   const results: Awaited<ReturnType<typeof channelIterator.next>>[] = [];
   for (let i = 0; i < 3; i++) {

@@ -22,8 +22,7 @@ export interface GraffitiPatch {
 export type GraffitiObject = GraffitiLocalObject &
   GraffitiLocation & { lastModified: Date; tombstone: boolean };
 
-export type GraffitiObjectTyped<Schema> = GraffitiObject &
-  JTDDataType<Schema & {}>;
+export type GraffitiObjectTyped<Schema> = GraffitiObject & JTDDataType<Schema>;
 
 export function locationToUrl(object: GraffitiObject): string;
 export function locationToUrl(location: GraffitiLocation): string;

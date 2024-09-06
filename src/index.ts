@@ -269,9 +269,9 @@ export default class GraffitiClient {
     );
   }
 
-  discoverLocalChanges<T>(
+  discoverLocalChanges<Schema extends JSONSchema4>(
     channels: string[],
-    schema: JSONSchema4 & T,
+    schema: Schema,
     options?: {
       ifModifiedSince?: Date;
     },
@@ -279,9 +279,9 @@ export default class GraffitiClient {
     return this.localChanges.discover(channels, schema, options);
   }
 
-  discover<T>(
+  discover<Schema extends JSONSchema4>(
     channels: string[],
-    schema: JSONSchema4 & T,
+    schema: Schema,
     session: {
       pods: string[];
     } & (
@@ -303,9 +303,9 @@ export default class GraffitiClient {
       schema,
     });
 
-    const validate = this.ajv.compile(schema as T & {});
+    const validate = this.ajv.compile(schema);
 
-    return this.linesFeed.streamMultiple(
+    return this.linesFeed.streamMultiple<GraffitiObjectTyped<Schema>>(
       urlPath,
       async (line, pod) => {
         const partial = JSON.parse(line);

@@ -80,14 +80,14 @@ export default class LocalChanges {
     this.dispatchChanges(oldObject);
   }
 
-  discover<Schema>(
+  discover<Schema extends JSONSchema4>(
     channels: string[],
-    schema: JSONSchema4 & Schema,
+    schema: Schema,
     options?: {
       ifModifiedSince?: Date;
     },
   ): AsyncGenerator<GraffitiObjectTyped<Schema>, void, void> {
-    const validate = this.ajv.compile(schema as Schema & {});
+    const validate = this.ajv.compile(schema);
     const matchOptions = {
       ifModifiedSince: options?.ifModifiedSince,
       channels,

@@ -20,6 +20,8 @@ export type GraffitiLocalObject = Pick<
 export type GraffitiLocation = Pick<GraffitiObject, "webId" | "name" | "pod">;
 
 export type GraffitiObjectTyped<Schema> = GraffitiObject & JTDDataType<Schema>;
+export type GraffitiLocalObjectTyped<Schema> = GraffitiLocalObject &
+  JTDDataType<Schema>;
 
 export interface GraffitiPatch {
   value?: JSONPatchOperation[];

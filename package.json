@@ -1,6 +1,6 @@
 {
   "name": "@graffiti-garden/client-core",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "client for the graffiti pod",
   "type": "module",
   "main": "src/index.ts",
@@ -8,7 +8,7 @@
   "scripts": {
     "test": "vitest",
     "build": "rollup -c rollup.config.js",
-    "prepublishOnly": "npm test && npm run build"
+    "prepublishOnly": "npm install && npm test && npm run build"
   },
   "author": "Theia Henderson",
   "license": "GPL-3.0-or-later",

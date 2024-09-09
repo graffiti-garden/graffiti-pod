@@ -5,6 +5,7 @@ import type {
   GraffitiObject,
   GraffitiPatch,
   GraffitiObjectTyped,
+  GraffitiLocalObjectTyped,
 } from "./types";
 import type { JSONSchema4 } from "json-schema";
 import { parseGraffitiObjectResponse } from "./response-parsers";
@@ -52,22 +53,22 @@ export default class GraffitiClient {
     return session?.fetch ?? fetch;
   }
 
-  async put(
+  async put<Schema>(
     object: GraffitiLocalObject,
     location: GraffitiLocation,
     session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
-  async put(
+  async put<Schema>(
     object: GraffitiLocalObject,
     url: string,
     session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
-  async put(
+  async put<Schema>(
     object: GraffitiLocalObject,
     session: { fetch: typeof fetch; pod: string; webId: string },
   ): Promise<GraffitiObject>;
-  async put(
-    object: GraffitiLocalObject,
+  async put<Schema>(
+    object: GraffitiLocalObjectTyped<Schema>,
     locationOrUrlOrSession:
       | string
       | { name?: string; pod: string; webId: string; fetch?: typeof fetch },

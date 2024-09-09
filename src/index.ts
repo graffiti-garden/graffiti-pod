@@ -54,17 +54,17 @@ export default class GraffitiClient {
   }
 
   async put<Schema>(
-    object: GraffitiLocalObject,
+    object: GraffitiLocalObjectTyped<Schema>,
     location: GraffitiLocation,
     session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async put<Schema>(
-    object: GraffitiLocalObject,
+    object: GraffitiLocalObjectTyped<Schema>,
     url: string,
     session: { fetch: typeof fetch },
   ): Promise<GraffitiObject>;
   async put<Schema>(
-    object: GraffitiLocalObject,
+    object: GraffitiLocalObjectTyped<Schema>,
     session: { fetch: typeof fetch; pod: string; webId: string },
   ): Promise<GraffitiObject>;
   async put<Schema>(

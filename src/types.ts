@@ -27,6 +27,21 @@ export interface GraffitiPatch {
   acl?: JSONPatchOperation[];
 }
 
+export type GraffitiSession = {
+  pods: string[];
+} & (
+  | {
+      pod: string;
+      fetch: typeof fetch;
+      webId: string;
+    }
+  | {
+      pod?: undefined;
+      fetch?: undefined;
+      webId?: undefined;
+    }
+);
+
 export function locationToUrl(object: GraffitiObject): string;
 export function locationToUrl(location: GraffitiLocation): string;
 export function locationToUrl(location: GraffitiLocation) {

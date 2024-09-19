@@ -760,8 +760,7 @@ it("put with random name", async () => {
   );
   expect(putted.webId).toBe(webId);
   expect(putted.pod).toBe(homePod);
-  expect(putted.name).toHaveLength(32);
-  console.log(putted);
+  expect(putted.name).toHaveLength(22);
 
   const gotten = await graffiti.get(putted, {
     fetch,

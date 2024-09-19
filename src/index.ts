@@ -99,9 +99,13 @@ export default class GraffitiClient {
         // Generate a random name if none is provided
         const bytes = new Uint8Array(16);
         crypto.getRandomValues(bytes);
-        name = Array.from(bytes)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+        // Convert it to base64
+        const base64 = btoa(String.fromCodePoint(...bytes));
+        // Make sure it is url safe
+        name = base64
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/\=+$/, "");
       }
 
       location = { webId, pod, name };

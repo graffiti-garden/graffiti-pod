@@ -1,6 +1,5 @@
 import Delegation from "./delegation";
 import type {
-  GraffitiLocalObject,
   GraffitiLocation,
   GraffitiObject,
   GraffitiPatch,
@@ -334,4 +333,13 @@ export default class GraffitiClient {
       options,
     );
   }
+}
+
+// Returns a global graffiti instance
+let graffiti: GraffitiClient | undefined = undefined;
+export function useGraffiti(): GraffitiClient {
+  if (!graffiti) {
+    graffiti = new GraffitiClient();
+  }
+  return graffiti;
 }

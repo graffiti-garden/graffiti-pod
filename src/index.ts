@@ -19,10 +19,16 @@ import {
   CHANNEL_RESULT_SCHEMA,
 } from "./schemas";
 
-export type * from "./types";
+export * from "./types";
 export type { JSONSchema4 };
 
-export default class GraffitiClient {
+/**
+ * The main class for interacting with the Graffiti API.
+ * We recommend accessing the class via the singleton instance
+ * provided by { @link useGraffiti } to maintain a global cache
+ * and reactivity.
+ */
+export class GraffitiClient {
   readonly delegation = new Delegation();
   private readonly linesFeed = new LinesFeed();
   private ajv = new Ajv({
@@ -38,12 +44,24 @@ export default class GraffitiClient {
     CHANNEL_RESULT_SCHEMA,
   );
 
+  /**
+   * An alias of {@link locationToUrl}.
+   * @group Utilities
+   */
   locationToUrl(location: GraffitiLocation): string {
     return locationToUrl(location);
   }
+  /**
+   * An alias of {@link locationToUrl}
+   * @group Utilities
+   */
   objectToUrl(object: GraffitiObject): string {
     return this.locationToUrl(object);
   }
+  /**
+   * An alias of {@link urlToLocation}.
+   * @group Utilities
+   */
   urlToLocation(url: string): GraffitiLocation {
     return urlToLocation(url);
   }
@@ -52,6 +70,25 @@ export default class GraffitiClient {
     return session?.fetch ?? fetch;
   }
 
+  /**
+   * PUTs a new object to the given location specified by a `webId`, `name`,
+   * and `pod` or equivalently a Graffiti URL. If no `name` is provided,
+   * a random one will be generated.
+   *
+   * The supplied object must contain a `value`, `channels`, and optionally
+   * an access control list (`acl`). It is also type-checked against the
+   * [JSON schema](https://json-schema.org/) that can be optionally provided
+   * as the generic type parameter. We highly recommend providing a schema to
+   * ensure that the PUT object matches subsequent {@link get} or {@link discover}
+   * operations.
+   *
+   * An authenticated `fetch` function must be provided in the `session` object.
+   * See {@link GraffitiSession} for more information.
+   *
+   * The previous object at the location will be returned if it exists.
+   *
+   * @group REST Operations
+   */
   async put<Schema>(
     object: GraffitiLocalObjectTyped<Schema>,
     location: GraffitiLocation,
@@ -128,6 +165,16 @@ export default class GraffitiClient {
     return oldObject;
   }
 
+  /**
+   * GETs an object from the given location specified by a `webId`, `name`,
+   * and `pod` or equivalently a Graffiti URL.
+   *
+   * An authenticated fetch function must be provided in the `session` object
+   * to GET access-controlled objects. See {@link GraffitiSession} for more
+   * information.
+   *
+   * @group REST Operations
+   */
   async get(
     location: GraffitiLocation,
     session?: { fetch?: typeof fetch },
@@ -152,6 +199,17 @@ export default class GraffitiClient {
     return parseGraffitiObjectResponse(response, location, true);
   }
 
+  /**
+   * DELETEs an object from the given location specified by a `webId`, `name`,
+   * and `pod` or equivalently a Graffiti URL.
+   *
+   * An authenticated fetch function must be provided in the `session` object.
+   * See {@link GraffitiSession} for more information.
+   *
+   * The previous object at the location will be returned if it exists.
+   *
+   * @group REST Operations
+   */
   async delete(
     location: GraffitiLocation,
     session: { fetch: typeof fetch },
@@ -177,6 +235,21 @@ export default class GraffitiClient {
     return oldObject;
   }
 
+  /**
+   * PATCHes an object at the given location specified by a `webId`, `name`,
+   * and `pod` or equivalently a Graffiti URL.
+   *
+   * The patch must be an object containing at least one of three optional
+   * fields: `value`, `channels`, and `acl`. Each of these fields must be
+   * a [JSON Patch](https://jsonpatch.com) array of operations.
+   *
+   * An authenticated fetch function must be provided in the `session` object.
+   * See {@link GraffitiSession} for more information.
+   *
+   * The previous object at the location will be returned if it exists.
+   *
+   * @group REST Operations
+   */
   async patch(
     patch: GraffitiPatch,
     location: GraffitiLocation,
@@ -212,6 +285,17 @@ export default class GraffitiClient {
     return oldObject;
   }
 
+  /**
+   * Returns a list of all channels a user has posted to.
+   * This is likely not very useful for most applications, but
+   * necessary for certain applications where a user wants a
+   * global view of all their Graffiti data.
+   *
+   * Error messages are returned in the stream rather than thrown
+   * to prevent one unstable pod from breaking the entire stream.
+   *
+   * @group Query Operations
+   */
   listChannels(
     session: {
       pods: string[];
@@ -240,6 +324,18 @@ export default class GraffitiClient {
     );
   }
 
+  /**
+   * Returns a list of all objects a user has posted that are
+   * not associated with any channel, i.e. orphaned objects.
+   * This is likely not very useful for most applications, but
+   * necessary for certain applications where a user wants a
+   * global view of all their Graffiti data.
+   *
+   * Error messages are returned in the stream rather than thrown
+   * to prevent one unstable pod from breaking the entire stream.
+   *
+   * @group Query Operations
+   */
   listOrphans(
     session: {
       pods: string[];
@@ -268,6 +364,18 @@ export default class GraffitiClient {
     );
   }
 
+  /**
+   * Returns a stream of objects that match the given [JSON Schema](https://json-schema.org)
+   * and are contained in at least one of the given `channels`.
+   *
+   * Unlike {@link discover}, which queries external pods, this function listens
+   * for changes made locally via {@link put}, {@link patch}, and {@link delete}.
+   * Additionally, unlike {@link discover}, it does not return a one-time snapshot
+   * of objects, but rather streams object changes as they occur. This is useful
+   * for updating a UI in real-time without unnecessary polling.
+   *
+   * @group Query Operations
+   */
   discoverLocalChanges<Schema extends JSONSchema4>(
     channels: string[],
     schema: Schema,
@@ -278,6 +386,24 @@ export default class GraffitiClient {
     return this.localChanges.discover(channels, schema, options);
   }
 
+  /**
+   * Returns a stream of objects that match the given [JSON Schema](https://json-schema.org)
+   * and are contained in at least one of the given `channels`.
+   *
+   * Objects are returned asynchronously as they are discovered but the stream
+   * will end once all objects that currently exist have been discovered. So,
+   * this function must be polled again for new objects, but it includes significant
+   * caching to reduce network usage.
+   *
+   * These objects are fetched from the `pods` specified in the `session`,
+   * and a `webId` and `fetch` function may also be provided to retrieve
+   * access-controlled objects. See {@link GraffitiSession} for more information.
+   *
+   * Error messages are returned in the stream rather than thrown
+   * to prevent one unstable pod from breaking the entire stream.
+   *
+   * @group Query Operations
+   */
   discover<Schema extends JSONSchema4>(
     channels: string[],
     schema: Schema,
@@ -335,8 +461,13 @@ export default class GraffitiClient {
   }
 }
 
-// Returns a global graffiti instance
+export default GraffitiClient;
+
 let graffiti: GraffitiClient | undefined = undefined;
+/**
+ * Returns a singleton instance of the {@link GraffitiClient} class
+ * for global cache-reuse.
+ */
 export function useGraffiti(): GraffitiClient {
   if (!graffiti) {
     graffiti = new GraffitiClient();

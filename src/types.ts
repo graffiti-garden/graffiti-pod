@@ -1,7 +1,7 @@
 import { type JTDDataType } from "ajv/dist/core";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
 
-export type GraffitiObject = {
+export interface GraffitiObject {
   value?: {};
   channels: string[];
   acl?: string[];
@@ -10,7 +10,7 @@ export type GraffitiObject = {
   pod: string;
   lastModified: Date;
   tombstone: boolean;
-};
+}
 
 export type GraffitiLocalObject = Pick<
   GraffitiObject,
@@ -44,13 +44,26 @@ export type GraffitiSession = {
     }
 );
 
-export function locationToUrl(object: GraffitiObject): string;
-export function locationToUrl(location: GraffitiLocation): string;
+/**
+ * Convert a {@link GraffitiLocation} object containing a
+ * `webId`, `name`, and `pod` into a graffiti URL
+ * of the form `https://pod.example.com/webId/name`.
+ */
 export function locationToUrl(location: GraffitiLocation) {
   const base = new URL(location.pod).origin;
   return `${base}/${encodeURIComponent(location.webId)}/${encodeURIComponent(location.name)}`;
 }
+/**
+ * An alias of {@link locationToUrl}
+ */
+export function objectToUrl(object: GraffitiObject) {
+  return locationToUrl(object);
+}
 
+/**
+ * Parse a graffiti URL of the form `https://pod.example.com/webId/name`
+ * into a {@link GraffitiLocation} object containing a `webId`, `name`, and `pod`.
+ */
 export function urlToLocation(url: string): GraffitiLocation {
   const parts = url.split("/");
   const nameEncoded = parts.pop();

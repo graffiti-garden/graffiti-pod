@@ -1,17 +1,17 @@
 import { Repeater } from "@repeaterjs/repeater";
 import type {
-  GraffitiLocalObject,
-  GraffitiObject,
+  GraffitiLocalObjectBase,
+  GraffitiObjectBase,
   GraffitiPatch,
-  GraffitiObjectTyped,
+  GraffitiObject,
 } from "./types";
 import { applyPatch } from "fast-json-patch";
 import type { JSONSchema4 } from "json-schema";
 import Ajv from "ajv";
 
 type LocalChangeEvent = CustomEvent<{
-  oldObject: GraffitiObject;
-  newObject?: GraffitiObject;
+  oldObject: GraffitiObjectBase;
+  newObject?: GraffitiObjectBase;
 }>;
 
 export default class LocalChanges {
@@ -24,7 +24,7 @@ export default class LocalChanges {
   ) {}
 
   matchObject(
-    object: GraffitiObject,
+    object: GraffitiObjectBase,
     options: {
       channels: string[];
       ifModifiedSince?: Date;
@@ -38,8 +38,8 @@ export default class LocalChanges {
   }
 
   private dispatchChanges(
-    oldObject: GraffitiObject,
-    newObject?: GraffitiObject,
+    oldObject: GraffitiObjectBase,
+    newObject?: GraffitiObjectBase,
   ) {
     this.changes.dispatchEvent(
       new CustomEvent("change", {
@@ -51,8 +51,11 @@ export default class LocalChanges {
     );
   }
 
-  put(newLocalObject: GraffitiLocalObject, oldObject: GraffitiObject): void {
-    const newObject: GraffitiObject = {
+  put(
+    newLocalObject: GraffitiLocalObjectBase,
+    oldObject: GraffitiObjectBase,
+  ): void {
+    const newObject: GraffitiObjectBase = {
       ...oldObject,
       ...newLocalObject,
       tombstone: false,
@@ -60,8 +63,8 @@ export default class LocalChanges {
     this.dispatchChanges(oldObject, newObject);
   }
 
-  patch(patch: GraffitiPatch, oldObject: GraffitiObject): void {
-    const newObject: GraffitiObject = { ...oldObject, tombstone: false };
+  patch(patch: GraffitiPatch, oldObject: GraffitiObjectBase): void {
+    const newObject: GraffitiObjectBase = { ...oldObject, tombstone: false };
     for (const prop of ["value", "channels", "acl"] as const) {
       const ops = patch[prop];
       if (!ops || !ops.length) continue;
@@ -76,7 +79,7 @@ export default class LocalChanges {
     this.dispatchChanges(oldObject, newObject);
   }
 
-  delete(oldObject: GraffitiObject): void {
+  delete(oldObject: GraffitiObjectBase): void {
     this.dispatchChanges(oldObject);
   }
 
@@ -86,13 +89,13 @@ export default class LocalChanges {
     options?: {
       ifModifiedSince?: Date;
     },
-  ): AsyncGenerator<GraffitiObjectTyped<Schema>, void, void> {
+  ): AsyncGenerator<GraffitiObject<Schema>, void, void> {
     const validate = this.ajv.compile(schema);
     const matchOptions = {
       ifModifiedSince: options?.ifModifiedSince,
       channels,
     };
-    const repeater = new Repeater<GraffitiObjectTyped<Schema>>(
+    const repeater = new Repeater<GraffitiObject<Schema>>(
       async (push, stop) => {
         const callback = (event: LocalChangeEvent) => {
           const { oldObject, newObject } = event.detail;

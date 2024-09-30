@@ -1,4 +1,4 @@
-import type { GraffitiLocation, GraffitiObject } from "./types";
+import type { GraffitiLocation, GraffitiObjectBase } from "./types";
 
 export async function parseErrorResponse(response: Response): Promise<Error> {
   const text = await response.text();
@@ -29,7 +29,7 @@ export async function parseGraffitiObjectResponse(
   response: Response,
   location: GraffitiLocation,
   isGet: boolean,
-): Promise<GraffitiObject> {
+): Promise<GraffitiObjectBase> {
   if (!response.ok) {
     throw await parseErrorResponse(response);
   }

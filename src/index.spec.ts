@@ -5,7 +5,11 @@ import {
   randomValue,
   solidLogin,
 } from "./test-utils";
-import GraffitiClient, { type GraffitiObject, type GraffitiPatch } from ".";
+import GraffitiClient, {
+  type GraffitiObjectBase,
+  type GraffitiPatch,
+  type JSONSchema4,
+} from ".";
 
 const { fetch, webId } = await solidLogin();
 
@@ -25,7 +29,7 @@ it("Put, replace, delete", async () => {
   expect(previous.name).toEqual(location.name);
   expect(previous.webId).toEqual(location.webId);
   expect(previous.pod).toEqual(location.pod);
-  const gotten = await graffiti.get(location);
+  const gotten = await graffiti.get(location, {});
   expect(gotten.value).toEqual(value);
   expect(gotten.channels).toEqual([]);
   expect(gotten.acl).toBeUndefined();
@@ -48,7 +52,7 @@ it("Put, replace, delete", async () => {
   expect(beforeReplaced.value).toEqual(value);
   expect(beforeReplaced.tombstone).toBe(true);
   expect(beforeReplaced).toMatchObject(location);
-  const afterReplaced = await graffiti.get(location);
+  const afterReplaced = await graffiti.get(location, {});
   expect(afterReplaced.value).toEqual(newValue);
   expect(afterReplaced.lastModified.getTime()).toEqual(
     beforeReplaced.lastModified.getTime(),
@@ -62,7 +66,78 @@ it("Put, replace, delete", async () => {
   expect(beforeDeleted.lastModified.getTime()).toBeGreaterThan(
     afterReplaced.lastModified.getTime(),
   );
-  await expect(graffiti.get(location)).rejects.toThrow();
+  await expect(graffiti.get(location, {})).rejects.toThrow();
+});
+
+it("put and get with schema", async () => {
+  const schema = {
+    properties: {
+      value: {
+        properties: {
+          something: {
+            type: "string",
+          },
+          another: {
+            type: "number",
+          },
+        },
+      },
+    },
+  } satisfies JSONSchema4;
+
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+
+  const goodValue = {
+    something: "hello",
+    another: 42,
+  } as const;
+
+  await graffiti.put<typeof schema>(
+    {
+      value: goodValue,
+      channels: [],
+    },
+    location,
+    { fetch },
+  );
+
+  const gotten = await graffiti.get(location, schema, { fetch });
+  expect(gotten.value.something).toEqual(goodValue.something);
+  expect(gotten.value.another).toEqual(goodValue.another);
+});
+
+it("put and get with bad schema", async () => {
+  const graffiti = new GraffitiClient();
+  const location = randomLocation();
+  await graffiti.put(
+    {
+      value: {
+        hello: "world",
+      },
+      channels: [],
+    },
+    location,
+    { fetch },
+  );
+
+  await expect(
+    graffiti.get(
+      location,
+      {
+        properties: {
+          value: {
+            properties: {
+              hello: {
+                type: "number",
+              },
+            },
+          },
+        },
+      },
+      { fetch },
+    ),
+  ).rejects.toThrow();
 });
 
 it("put and get with access control", async () => {
@@ -82,11 +157,11 @@ it("put and get with access control", async () => {
   );
 
   // Get it with authenticated fetch
-  const gotten = await graffiti.get(location, { fetch });
+  const gotten = await graffiti.get(location, {}, { fetch });
   expect(gotten.value).toEqual(value);
 
   // But not with plain fetch
-  await expect(graffiti.get(location)).rejects.toThrow();
+  await expect(graffiti.get(location, {})).rejects.toThrow();
 });
 
 it("patch value", async () => {
@@ -96,7 +171,7 @@ it("patch value", async () => {
     something: "hello, world~ c:",
   };
   await graffiti.put({ value, channels: [] }, location, { fetch });
-  const put = await graffiti.get(location);
+  const put = await graffiti.get(location, {});
 
   const patch: GraffitiPatch = {
     value: [{ op: "replace", path: "/something", value: "goodbye, world~ c:" }],
@@ -104,7 +179,7 @@ it("patch value", async () => {
   const beforePatched = await graffiti.patch(patch, location, { fetch });
   expect(beforePatched.value).toEqual(put.value);
   expect(beforePatched.tombstone).toBe(true);
-  const gotten = await graffiti.get(location);
+  const gotten = await graffiti.get(location, {});
   expect(gotten.value).toEqual({
     something: "goodbye, world~ c:",
   });
@@ -125,7 +200,7 @@ it("patch channels", async () => {
     channels: [{ op: "replace", path: "/0", value: "goodbye" }],
   };
   await graffiti.patch(patch, location, { fetch });
-  const gotten = await graffiti.get(location, { fetch });
+  const gotten = await graffiti.get(location, {}, { fetch });
   expect(gotten.channels).toEqual(["goodbye"]);
   await graffiti.delete(location, { fetch });
 });
@@ -262,12 +337,12 @@ it("query with last modified", async () => {
   const location = randomLocation();
   const channels = [randomString(), randomString()];
   await graffiti.put({ value: randomValue(), channels }, location, { fetch });
-  const lastModified = (await graffiti.get(location)).lastModified;
+  const lastModified = (await graffiti.get(location, {})).lastModified;
 
   const value = randomValue();
   const location2 = randomLocation();
   await graffiti.put({ value, channels }, location2, { fetch });
-  const lastModified2 = (await graffiti.get(location2)).lastModified;
+  const lastModified2 = (await graffiti.get(location2, {})).lastModified;
   expect(lastModified.getTime()).toBeLessThan(lastModified2.getTime());
 
   const iterator = graffiti.discover(
@@ -516,7 +591,7 @@ it("list orphans with ifModifiedSince", async () => {
   await graffiti.put({ value: randomValue(), channels: [] }, location, {
     fetch,
   });
-  const gotten = await graffiti.get(location, { fetch });
+  const gotten = await graffiti.get(location, {}, { fetch });
   const now = gotten.lastModified;
   const orphanIterator = graffiti.listOrphans(
     {
@@ -629,7 +704,7 @@ it("list channels", async () => {
 it("list channels with ifModifiedSince", async () => {
   const graffiti = new GraffitiClient();
   const channels = [randomString(), randomString(), randomString()];
-  let firstPutted: GraffitiObject;
+  let firstPutted: GraffitiObjectBase;
   for (let i = 0; i < 3; i++) {
     const putted = await graffiti.put(
       { value: { index: i }, channels },
@@ -640,7 +715,7 @@ it("list channels with ifModifiedSince", async () => {
     );
     if (i === 0) firstPutted = putted;
   }
-  const gotten = await graffiti.get(firstPutted!, { fetch });
+  const gotten = await graffiti.get(firstPutted!, {}, { fetch });
   const now = gotten.lastModified;
   const channelIterator = graffiti.listChannels(
     {
@@ -674,7 +749,7 @@ it("list channels with deleted channel", async () => {
       fetch,
     },
   );
-  const gotten = await graffiti.get(first, { fetch });
+  const gotten = await graffiti.get(first, {}, { fetch });
   const now = gotten.lastModified;
   await graffiti.put(
     { value: { index: 1 }, channels: channels.slice(1) },
@@ -762,9 +837,13 @@ it("put with random name", async () => {
   expect(putted.pod).toBe(homePod);
   expect(putted.name).toHaveLength(22);
 
-  const gotten = await graffiti.get(putted, {
-    fetch,
-  });
+  const gotten = await graffiti.get(
+    putted,
+    {},
+    {
+      fetch,
+    },
+  );
   expect(gotten.value).toEqual(value);
 });
 

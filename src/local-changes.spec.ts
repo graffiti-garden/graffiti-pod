@@ -1,11 +1,11 @@
 import { it, expect } from "vitest";
 import LocalChanges from "./local-changes";
 import { randomGraffitiObject, randomString, randomValue } from "./test-utils";
-import type { GraffitiLocalObject, GraffitiObject } from "./types";
+import type { GraffitiLocalObjectBase, GraffitiObjectBase } from "./types";
 
 it("match overlapping channels", () => {
   const localChanges = new LocalChanges();
-  const object: GraffitiObject = randomGraffitiObject();
+  const object: GraffitiObjectBase = randomGraffitiObject();
 
   expect(
     localChanges.matchObject(object, {
@@ -36,7 +36,7 @@ it("match overlapping channels", () => {
 
 it("match ifModifiedSince", () => {
   const localChanges = new LocalChanges();
-  const object: GraffitiObject = randomGraffitiObject();
+  const object: GraffitiObjectBase = randomGraffitiObject();
 
   expect(
     localChanges.matchObject(object, {
@@ -67,18 +67,18 @@ it("put", async () => {
   const sharedChannel = randomString();
   const shared = localChanges.discover([sharedChannel], {}).next();
 
-  const oldObject: GraffitiObject = randomGraffitiObject();
+  const oldObject: GraffitiObjectBase = randomGraffitiObject();
   oldObject.channels = [beforeChannel, sharedChannel];
   oldObject.tombstone = true;
 
-  const newLocalObject: GraffitiLocalObject = {
+  const newLocalObject: GraffitiLocalObjectBase = {
     value: randomValue(),
     channels: [afterChannel, sharedChannel],
   };
 
   localChanges.put(newLocalObject, oldObject);
 
-  const newObject: GraffitiObject = {
+  const newObject: GraffitiObjectBase = {
     ...oldObject,
     ...newLocalObject,
     tombstone: false,
@@ -98,7 +98,7 @@ it("patch", async () => {
   const sharedChannel = randomString();
   const shared = localChanges.discover([sharedChannel], {}).next();
 
-  const oldObject: GraffitiObject = randomGraffitiObject();
+  const oldObject: GraffitiObjectBase = randomGraffitiObject();
   oldObject.channels = [beforeChannel, sharedChannel];
   oldObject.tombstone = true;
 
@@ -145,7 +145,7 @@ it("delete", async () => {
   const channels = [randomString(), randomString(), randomString()];
   const result = localChanges.discover(channels, {}).next();
 
-  const oldObject: GraffitiObject = randomGraffitiObject();
+  const oldObject: GraffitiObjectBase = randomGraffitiObject();
   oldObject.channels = [randomString(), ...channels.slice(1)];
   oldObject.tombstone = true;
 
@@ -184,11 +184,11 @@ it("JSON query", async () => {
     })
     .next();
 
-  const oldObject: GraffitiObject = randomGraffitiObject();
+  const oldObject: GraffitiObjectBase = randomGraffitiObject();
   oldObject.channels = [randomString(), ...channels.slice(1)];
   oldObject.tombstone = true;
 
-  const newObject: GraffitiObject = {
+  const newObject: GraffitiObjectBase = {
     ...oldObject,
     tombstone: false,
     value: {

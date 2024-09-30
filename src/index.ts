@@ -1,10 +1,10 @@
 import Delegation from "./delegation";
 import type {
   GraffitiLocation,
-  GraffitiObject,
+  GraffitiObjectBase,
   GraffitiPatch,
-  GraffitiObjectTyped,
-  GraffitiLocalObjectTyped,
+  GraffitiObject,
+  GraffitiLocalObject,
 } from "./types";
 import type { JSONSchema4 } from "json-schema";
 import { parseGraffitiObjectResponse } from "./response-parsers";
@@ -44,6 +44,10 @@ export class GraffitiClient {
     CHANNEL_RESULT_SCHEMA,
   );
 
+  constructor(
+    private bootstrapPods: string[] = ["https://pod.graffiti.garden"],
+  ) {}
+
   /**
    * An alias of {@link locationToUrl}.
    * @group Utilities
@@ -55,7 +59,7 @@ export class GraffitiClient {
    * An alias of {@link locationToUrl}
    * @group Utilities
    */
-  objectToUrl(object: GraffitiObject): string {
+  objectToUrl(object: GraffitiObjectBase): string {
     return this.locationToUrl(object);
   }
   /**
@@ -90,26 +94,26 @@ export class GraffitiClient {
    * @group REST Operations
    */
   async put<Schema>(
-    object: GraffitiLocalObjectTyped<Schema>,
+    object: GraffitiLocalObject<Schema>,
     location: GraffitiLocation,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async put<Schema>(
-    object: GraffitiLocalObjectTyped<Schema>,
+    object: GraffitiLocalObject<Schema>,
     url: string,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async put<Schema>(
-    object: GraffitiLocalObjectTyped<Schema>,
+    object: GraffitiLocalObject<Schema>,
     session: { fetch: typeof fetch; pod: string; webId: string },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async put<Schema>(
-    object: GraffitiLocalObjectTyped<Schema>,
+    object: GraffitiLocalObject<Schema>,
     locationOrUrlOrSession:
       | string
       | { name?: string; pod: string; webId: string; fetch?: typeof fetch },
     session?: { fetch: typeof fetch },
-  ): Promise<GraffitiObject> {
+  ): Promise<GraffitiObjectBase> {
     let location: GraffitiLocation;
     let url: string;
     let fetch = this.whichFetch(session);
@@ -169,24 +173,29 @@ export class GraffitiClient {
    * GETs an object from the given location specified by a `webId`, `name`,
    * and `pod` or equivalently a Graffiti URL.
    *
+   * The object is type-checked against the provided [JSON schema](https://json-schema.org/).
+   *
    * An authenticated fetch function must be provided in the `session` object
    * to GET access-controlled objects. See {@link GraffitiSession} for more
    * information.
    *
    * @group REST Operations
    */
-  async get(
+  async get<Schema extends JSONSchema4>(
     location: GraffitiLocation,
+    schema: Schema,
     session?: { fetch?: typeof fetch },
-  ): Promise<GraffitiObject>;
-  async get(
+  ): Promise<GraffitiObject<Schema>>;
+  async get<Schema extends JSONSchema4>(
     url: string,
+    schema: Schema,
     session?: { fetch?: typeof fetch },
-  ): Promise<GraffitiObject>;
-  async get(
+  ): Promise<GraffitiObject<Schema>>;
+  async get<Schema extends JSONSchema4>(
     locationOrUrl: GraffitiLocation | string,
+    schema: Schema,
     session?: { fetch?: typeof fetch },
-  ): Promise<GraffitiObject> {
+  ): Promise<GraffitiObject<Schema>> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     if (
       !(await this.delegation.hasPod(location.webId, location.pod, session))
@@ -196,7 +205,14 @@ export class GraffitiClient {
       );
     }
     const response = await this.whichFetch(session)(url);
-    return parseGraffitiObjectResponse(response, location, true);
+
+    const object = await parseGraffitiObjectResponse(response, location, true);
+
+    const validate = this.ajv.compile(schema);
+    if (!validate(object)) {
+      throw new Error("The fetched object does not match the provided schema.");
+    }
+    return object;
   }
 
   /**
@@ -213,15 +229,15 @@ export class GraffitiClient {
   async delete(
     location: GraffitiLocation,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async delete(
     url: string,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async delete(
     locationOrUrl: GraffitiLocation | string,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject> {
+  ): Promise<GraffitiObjectBase> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
     const response = await this.whichFetch(session)(url, {
       method: "DELETE",
@@ -254,17 +270,17 @@ export class GraffitiClient {
     patch: GraffitiPatch,
     location: GraffitiLocation,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async patch(
     patch: GraffitiPatch,
     url: string,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject>;
+  ): Promise<GraffitiObjectBase>;
   async patch(
     patch: GraffitiPatch,
     locationOrUrl: GraffitiLocation | string,
     session: { fetch: typeof fetch },
-  ): Promise<GraffitiObject> {
+  ): Promise<GraffitiObjectBase> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
 
     const requestInit: RequestInit = { method: "PATCH" };
@@ -430,7 +446,7 @@ export class GraffitiClient {
 
     const validate = this.ajv.compile(schema);
 
-    return this.linesFeed.streamMultiple<GraffitiObjectTyped<Schema>>(
+    return this.linesFeed.streamMultiple<GraffitiObject<Schema>>(
       urlPath,
       async (line, pod) => {
         const partial = JSON.parse(line);
@@ -438,7 +454,7 @@ export class GraffitiClient {
           throw new Error("Invalid graffiti object");
         }
 
-        const object: GraffitiObject = {
+        const object: GraffitiObjectBase = {
           ...partial,
           pod,
           lastModified: new Date(partial.lastModified),

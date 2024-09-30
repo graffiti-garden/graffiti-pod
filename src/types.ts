@@ -1,7 +1,7 @@
 import { type JTDDataType } from "ajv/dist/core";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
 
-export interface GraffitiObject {
+export interface GraffitiObjectBase {
   value?: {};
   channels: string[];
   acl?: string[];
@@ -12,15 +12,18 @@ export interface GraffitiObject {
   tombstone: boolean;
 }
 
-export type GraffitiLocalObject = Pick<
-  GraffitiObject,
+export type GraffitiLocalObjectBase = Pick<
+  GraffitiObjectBase,
   "value" | "channels" | "acl"
 >;
 
-export type GraffitiLocation = Pick<GraffitiObject, "webId" | "name" | "pod">;
+export type GraffitiLocation = Pick<
+  GraffitiObjectBase,
+  "webId" | "name" | "pod"
+>;
 
-export type GraffitiObjectTyped<Schema> = GraffitiObject & JTDDataType<Schema>;
-export type GraffitiLocalObjectTyped<Schema> = GraffitiLocalObject &
+export type GraffitiObject<Schema> = GraffitiObjectBase & JTDDataType<Schema>;
+export type GraffitiLocalObject<Schema> = GraffitiLocalObjectBase &
   JTDDataType<Schema>;
 
 export interface GraffitiPatch {
@@ -56,7 +59,7 @@ export function locationToUrl(location: GraffitiLocation) {
 /**
  * An alias of {@link locationToUrl}
  */
-export function objectToUrl(object: GraffitiObject) {
+export function objectToUrl(object: GraffitiObjectBase) {
   return locationToUrl(object);
 }
 

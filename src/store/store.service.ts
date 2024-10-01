@@ -436,19 +436,12 @@ export class StoreService {
           tombstone: { $first: "$tombstone" },
         },
       },
-      // Mask out the value if the object has been deleted
-      // (ie tombstone is true) and fix the webId/name fields
+      // fix the webId/name fields
       {
         $project: {
           _id: 0,
           tombstone: 1,
-          value: {
-            $cond: {
-              if: "$tombstone",
-              then: "$$REMOVE",
-              else: "$value",
-            },
-          },
+          value: 1,
           webId: "$_id.webId",
           name: "$_id.name",
           lastModified: 1,

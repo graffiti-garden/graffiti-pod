@@ -665,7 +665,7 @@ describe("StoreService", () => {
       const iterator = service.queryObjects(go.channels, null);
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);
-      expect(result.value?.value).toBe(undefined);
+      expect(result.value?.value).toEqual(go.value);
       expect(await iterator.next()).toHaveProperty("done", true);
     });
 
@@ -677,7 +677,7 @@ describe("StoreService", () => {
       });
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);
-      expect(result.value?.value).toBe(undefined);
+      expect(result.value?.value).toEqual(go.value);
       expect(await iterator.next()).toHaveProperty("done", true);
     });
 
@@ -707,7 +707,7 @@ describe("StoreService", () => {
       const result = await iterator.next();
       expect(result.value?.name).toEqual(go.name);
       expect(result.value?.tombstone).toBe(true);
-      expect(result.value?.value).toBeUndefined();
+      expect(result.value?.value).toEqual(go.value);
       expect(result.value?.lastModified.getTime()).toBe(
         replaced?.lastModified.getTime(),
       );
@@ -731,7 +731,7 @@ describe("StoreService", () => {
       const iterator = service.queryObjects(go.channels, null);
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);
-      expect(result.value?.value).toBe(undefined);
+      expect(result.value?.value).toEqual(go.value);
       expect(await iterator.next()).toHaveProperty("done", true);
     });
 
@@ -743,7 +743,7 @@ describe("StoreService", () => {
       const iterator = service.queryObjects(go.channels, null);
       const result = await iterator.next();
       expect(result.value?.tombstone).toBe(true);
-      expect(result.value?.value).toBe(undefined);
+      expect(result.value?.value).toEqual(go.value);
       expect(await iterator.next()).toHaveProperty("done", true);
     });
 

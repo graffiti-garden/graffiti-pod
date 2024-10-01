@@ -1,4 +1,5 @@
 import { type JSONSchemaType } from "ajv";
+import type { JSONSchema4 } from "json-schema";
 
 export const ORPHAN_RESULT_SCHEMA: JSONSchemaType<{
   name: string;
@@ -32,7 +33,7 @@ export const GRAFFITI_OBJECT_SCHEMA: JSONSchemaType<{
   webId: string;
   name: string;
   channels: string[];
-  value?: {};
+  value: {};
   acl?: string[];
   tombstone: boolean;
   lastModified: string;
@@ -41,14 +42,24 @@ export const GRAFFITI_OBJECT_SCHEMA: JSONSchemaType<{
   properties: {
     webId: { type: "string" },
     name: { type: "string" },
-    value: {
-      type: "object",
-      nullable: true,
-    },
+    value: { type: "object" },
     channels: { type: "array", items: { type: "string" } },
     acl: { type: "array", nullable: true, items: { type: "string" } },
     tombstone: { type: "boolean" },
     lastModified: { type: "string" },
   },
-  required: ["webId", "name", "channels", "tombstone", "lastModified"],
+  required: ["webId", "name", "channels", "tombstone", "lastModified", "value"],
 };
+
+export const POD_ANNOUNCE_SCHEMA = {
+  properties: {
+    value: {
+      required: ["podAnnounce"],
+      properties: {
+        podAnnounce: {
+          type: "string",
+        },
+      },
+    },
+  },
+} satisfies JSONSchema4;

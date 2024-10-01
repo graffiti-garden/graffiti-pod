@@ -154,6 +154,21 @@ export class GraffitiClient {
       if (fetch_) fetch = fetch_;
     }
 
+    if (
+      !(
+        "podAnnounce" in object.value &&
+        typeof object.value.podAnnounce === "string"
+      )
+    ) {
+      // See if we've already announced the pod, if not announce it
+      // for await (const podAnnounce of this.discover(
+      //   object.channels,
+      //   podAnnounceSchema,
+      // )) {
+      //   if (podAnnounce.value.pod === location.pod) {
+      // }
+    }
+
     await this.delegation.addPod(location.webId, location.pod, session);
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
@@ -335,6 +350,8 @@ export class GraffitiClient {
           pod,
         };
       },
+      session.pods,
+      // this.delegation.getPods(session.webId, session),
       session,
       options,
     );
@@ -375,6 +392,8 @@ export class GraffitiClient {
           pod,
         };
       },
+      session.pods,
+      // this.delegation.getPods(session.webId, session),
       session,
       options,
     );
@@ -444,6 +463,35 @@ export class GraffitiClient {
       schema,
     });
 
+    let podIterator: AsyncGenerator<string, void, void> | string[] =
+      session.pods;
+    // if (JSON.stringify(podAnnounceSchema) !== JSON.stringify(schema)) {
+    //   const podAnnounceIterator = this.discover(
+    //     channels,
+    //     podAnnounceSchema,
+    //     session,
+    //     options,
+    //   );
+    //   async function* podIteratorFn() {
+    //     const seenPods = new Set<string>();
+    //     for await (const podAnnounce of podAnnounceIterator) {
+    //       if (podAnnounce.error) continue;
+    //       const pod = podAnnounce.value.value.pod;
+    //       if (seenPods.has(pod)) continue;
+    //       seenPods.add(pod);
+    //       yield pod;
+    //     }
+    //   }
+    //   podIterator = podIteratorFn();
+    // } else {
+    //   const this_ = this;
+    //   podIterator = (async function* () {
+    //     for (const pod of this_.bootstrapPods) {
+    //       yield pod;
+    //     }
+    //   })();
+    // }
+
     const validate = this.ajv.compile(schema);
 
     return this.linesFeed.streamMultiple<GraffitiObject<Schema>>(
@@ -471,6 +519,7 @@ export class GraffitiClient {
         }
         return object;
       },
+      podIterator,
       session,
       options,
     );

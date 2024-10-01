@@ -2,7 +2,7 @@ import { type JTDDataType } from "ajv/dist/core";
 import type { Operation as JSONPatchOperation } from "fast-json-patch";
 
 export interface GraffitiObjectBase {
-  value?: {};
+  value: {};
   channels: string[];
   acl?: string[];
   webId: string;

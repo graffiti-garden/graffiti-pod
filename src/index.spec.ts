@@ -332,6 +332,43 @@ it("query with actual query", async () => {
   expect(result2.done).toBe(true);
 });
 
+it("query for deleted content", async () => {
+  const graffiti = new GraffitiClient();
+  const channels = [randomString(), randomString()];
+  const schema = {
+    properties: {
+      value: {
+        required: ["someProperty"],
+        properties: {
+          someProperty: { type: "string" },
+        },
+      },
+    },
+  } satisfies JSONSchema4;
+
+  const value = {
+    someProperty: randomString(),
+  };
+  const location = randomLocation();
+  const putted = await graffiti.put<typeof schema>(
+    { value, channels },
+    location,
+    { fetch },
+  );
+  const deleted = await graffiti.delete(location, { fetch });
+  expect(deleted.lastModified.getTime()).toBeGreaterThan(
+    putted.lastModified.getTime(),
+  );
+  const iterator = graffiti.discover(channels, schema, { pods: [homePod] });
+  const result = await iterator.next();
+  if (result.done || result.value.error) throw new Error();
+  expect(result.value.value.tombstone).toBe(true);
+  // expect(result.value.value.value.someProperty).toEqual(value.someProperty);
+  expect(result.value.value.lastModified.getTime()).toBe(
+    deleted.lastModified.getTime(),
+  );
+});
+
 it("query with last modified", async () => {
   const graffiti = new GraffitiClient();
   const location = randomLocation();

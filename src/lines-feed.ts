@@ -59,7 +59,7 @@ export default class LinesFeed {
 
   async *stream(
     url: string,
-    session:
+    session?:
       | { fetch: typeof fetch; webId: string }
       | { fetch?: undefined; webId?: undefined },
     options?: {
@@ -68,7 +68,7 @@ export default class LinesFeed {
   ): AsyncGenerator<string, void, void> {
     const cacheKey = JSON.stringify({
       url,
-      webId: session.webId,
+      webId: session?.webId,
     });
 
     // Share the results of concurrent requests
@@ -112,7 +112,7 @@ export default class LinesFeed {
 
     let response: Response;
     try {
-      response = await (session.fetch ?? fetch)(url, {
+      response = await (session?.fetch ?? fetch)(url, {
         headers: {
           ...(lastModified
             ? {
@@ -183,18 +183,16 @@ export default class LinesFeed {
     }
   }
 
-  streamMultiple<T>(
+  async *streamMultiple<T>(
     urlPath: string,
     parser: (line: string, pod: string) => T | Promise<T>,
-    session: {
-      pods: string[];
-    } & (
+    pods: AsyncGenerator<string, void, void> | Promise<string[]> | string[],
+    session?:
       | {
           fetch: typeof fetch;
           webId: string;
         }
-      | { fetch?: undefined; webId?: undefined }
-    ),
+      | { fetch?: undefined; webId?: undefined },
     options?: {
       ifModifiedSince?: Date;
     },
@@ -212,9 +210,22 @@ export default class LinesFeed {
     void
   > {
     const this_ = this;
-    const iterators = session.pods.map((pod) => {
-      // Return type is the same as the return type of the function
-      return (async function* (): ReturnType<typeof this_.streamMultiple<T>> {
+
+    const iterators: ReturnType<typeof this_.streamMultiple<T>>[] = [];
+
+    let podsIterator: AsyncGenerator<string, void, void>;
+    if (Array.isArray(pods) || pods instanceof Promise) {
+      podsIterator = (async function* () {
+        for (const pod of await pods) {
+          yield pod;
+        }
+      })();
+    } else {
+      podsIterator = pods;
+    }
+
+    for await (const pod of podsIterator) {
+      const iteratorFn = async function* (): (typeof iterators)[0] {
         let origin: string;
         try {
           origin = new URL(pod).origin;
@@ -254,9 +265,13 @@ export default class LinesFeed {
             pod,
           };
         }
-      })();
-    });
+      };
+      iterators.push(iteratorFn());
+    }
 
-    return Repeater.merge(iterators);
+    const merged = Repeater.merge(iterators);
+    for await (const value of merged) {
+      yield value;
+    }
   }
 }

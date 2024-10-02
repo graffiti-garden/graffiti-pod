@@ -17,6 +17,7 @@ import {
   GRAFFITI_OBJECT_SCHEMA,
   ORPHAN_RESULT_SCHEMA,
   CHANNEL_RESULT_SCHEMA,
+  POD_ANNOUNCE_SCHEMA,
 } from "./schemas";
 
 export * from "./types";
@@ -44,9 +45,13 @@ export class GraffitiClient {
     CHANNEL_RESULT_SCHEMA,
   );
 
-  constructor(
-    private bootstrapPods: string[] = ["https://pod.graffiti.garden"],
-  ) {}
+  bootstrapPods: string[] = ["https://pod.graffiti.garden"];
+
+  constructor(options?: { bootstrapPods?: string[] }) {
+    if (options?.bootstrapPods) {
+      this.bootstrapPods = options.bootstrapPods;
+    }
+  }
 
   /**
    * An alias of {@link locationToUrl}.
@@ -161,12 +166,50 @@ export class GraffitiClient {
       )
     ) {
       // See if we've already announced the pod, if not announce it
-      // for await (const podAnnounce of this.discover(
-      //   object.channels,
-      //   podAnnounceSchema,
-      // )) {
-      //   if (podAnnounce.value.pod === location.pod) {
-      // }
+      const announcedToPods = new Set<string>();
+      for await (const podAnnounce of this.discover(
+        object.channels,
+        {
+          properties: {
+            webId: { enum: [location.webId] },
+            value: {
+              required: ["podAnnounce"],
+              properties: {
+                podAnnounce: { enum: [location.pod] },
+              },
+            },
+          },
+        } as const,
+        {
+          webId: location.webId,
+          fetch,
+        },
+        {
+          pods: this.bootstrapPods,
+        },
+      )) {
+        if (podAnnounce.error) continue;
+        announcedToPods.add(podAnnounce.value.pod);
+      }
+
+      const unannouncedToPods = this.bootstrapPods.filter(
+        (pod) => !announcedToPods.has(pod),
+      );
+
+      const announcements = unannouncedToPods.map(async (pod) => {
+        await this.put<typeof POD_ANNOUNCE_SCHEMA>(
+          {
+            value: { podAnnounce: location.pod },
+            channels: object.channels,
+          },
+          {
+            fetch,
+            webId: location.webId,
+            pod,
+          },
+        );
+      });
+      await Promise.all(announcements);
     }
 
     await this.delegation.addPod(location.webId, location.pod, session);
@@ -329,11 +372,11 @@ export class GraffitiClient {
    */
   listChannels(
     session: {
-      pods: string[];
       fetch: typeof fetch;
       webId: string;
     },
     options?: {
+      pods?: string[];
       ifModifiedSince?: Date;
     },
   ) {
@@ -350,8 +393,7 @@ export class GraffitiClient {
           pod,
         };
       },
-      session.pods,
-      // this.delegation.getPods(session.webId, session),
+      options?.pods ?? this.delegation.getPods(session.webId, session),
       session,
       options,
     );
@@ -371,11 +413,11 @@ export class GraffitiClient {
    */
   listOrphans(
     session: {
-      pods: string[];
       fetch: typeof fetch;
       webId: string;
     },
     options?: {
+      pods?: string[];
       ifModifiedSince?: Date;
     },
   ) {
@@ -392,8 +434,7 @@ export class GraffitiClient {
           pod,
         };
       },
-      session.pods,
-      // this.delegation.getPods(session.webId, session),
+      options?.pods ?? this.delegation.getPods(session.webId, session),
       session,
       options,
     );
@@ -442,9 +483,7 @@ export class GraffitiClient {
   discover<Schema extends JSONSchema4>(
     channels: string[],
     schema: Schema,
-    session: {
-      pods: string[];
-    } & (
+    session?:
       | {
           fetch: typeof fetch;
           webId: string;
@@ -452,45 +491,43 @@ export class GraffitiClient {
       | {
           fetch?: undefined;
           webId?: undefined;
-        }
-    ),
+        },
     options?: {
+      pods?: string[];
       ifModifiedSince?: Date;
     },
-  ) {
+  ): ReturnType<typeof this.linesFeed.streamMultiple<GraffitiObject<Schema>>> {
     const urlPath = encodeQueryParams("discover", {
       channels,
       schema,
     });
 
-    let podIterator: AsyncGenerator<string, void, void> | string[] =
-      session.pods;
-    // if (JSON.stringify(podAnnounceSchema) !== JSON.stringify(schema)) {
-    //   const podAnnounceIterator = this.discover(
-    //     channels,
-    //     podAnnounceSchema,
-    //     session,
-    //     options,
-    //   );
-    //   async function* podIteratorFn() {
-    //     const seenPods = new Set<string>();
-    //     for await (const podAnnounce of podAnnounceIterator) {
-    //       if (podAnnounce.error) continue;
-    //       const pod = podAnnounce.value.value.pod;
-    //       if (seenPods.has(pod)) continue;
-    //       seenPods.add(pod);
-    //       yield pod;
-    //     }
-    //   }
-    //   podIterator = podIteratorFn();
-    // } else {
-    //   const this_ = this;
-    //   podIterator = (async function* () {
-    //     for (const pod of this_.bootstrapPods) {
-    //       yield pod;
-    //     }
-    //   })();
-    // }
+    let podIterator: AsyncGenerator<string, void, void> | string[];
+
+    if (options?.pods) {
+      podIterator = options.pods;
+    } else {
+      const podAnnounceIterator = this.discover(
+        channels,
+        POD_ANNOUNCE_SCHEMA,
+        session,
+        {
+          ...options,
+          pods: this.bootstrapPods,
+        },
+      );
+      async function* podIteratorFn() {
+        const seenPods = new Set<string>();
+        for await (const podAnnounce of podAnnounceIterator) {
+          if (podAnnounce.error) continue;
+          const pod = podAnnounce.value.value.podAnnounce;
+          if (seenPods.has(pod)) continue;
+          seenPods.add(pod);
+          yield pod;
+        }
+      }
+      podIterator = podIteratorFn();
+    }
 
     const validate = this.ajv.compile(schema);
 

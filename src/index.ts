@@ -166,11 +166,12 @@ export class GraffitiClient {
       )
     ) {
       // See if we've already announced the pod, if not announce it
-      const announcedToPods = new Set<string>();
+      const announcedToChannelsPerPod = new Map<string, Set<string>>();
       for await (const podAnnounce of this.discover(
         object.channels,
         {
           properties: {
+            tombstone: { enum: [false] },
             webId: { enum: [location.webId] },
             value: {
               required: ["podAnnounce"],
@@ -189,26 +190,36 @@ export class GraffitiClient {
         },
       )) {
         if (podAnnounce.error) continue;
-        announcedToPods.add(podAnnounce.value.pod);
+        const pod = podAnnounce.value.pod;
+        if (!announcedToChannelsPerPod.has(pod)) {
+          announcedToChannelsPerPod.set(pod, new Set());
+        }
+        for (const channel of podAnnounce.value.channels) {
+          announcedToChannelsPerPod.get(pod)!.add(channel);
+        }
       }
 
-      const unannouncedToPods = this.bootstrapPods.filter(
-        (pod) => !announcedToPods.has(pod),
-      );
-
-      const announcements = unannouncedToPods.map(async (pod) => {
-        await this.put<typeof POD_ANNOUNCE_SCHEMA>(
-          {
-            value: { podAnnounce: location.pod },
-            channels: object.channels,
-          },
-          {
-            fetch,
-            webId: location.webId,
-            pod,
-          },
+      const announcements: Promise<any>[] = [];
+      for (const pod of this.bootstrapPods) {
+        const channelsToAnnounce = announcedToChannelsPerPod.has(pod)
+          ? object.channels.filter(
+              (channel) => !announcedToChannelsPerPod.get(pod)!.has(channel),
+            )
+          : object.channels;
+        announcements.push(
+          this.put<typeof POD_ANNOUNCE_SCHEMA>(
+            {
+              value: { podAnnounce: location.pod },
+              channels: channelsToAnnounce,
+            },
+            {
+              fetch,
+              webId: location.webId,
+              pod,
+            },
+          ),
         );
-      });
+      }
       await Promise.all(announcements);
     }
 

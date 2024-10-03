@@ -159,13 +159,20 @@ export class GraffitiClient {
       if (fetch_) fetch = fetch_;
     }
 
+    // Pod announcements provide hints that point to the
+    // pod where the object can be found from a set of
+    // universally known "bootstrap" pods.
+    //
+    // If this is a pod announcement itself, we don't need
+    // to do anything, otherwise we check if we've already
+    // announced the pod and if not, announce it.
     if (
       !(
         "podAnnounce" in object.value &&
         typeof object.value.podAnnounce === "string"
       )
     ) {
-      // See if we've already announced the pod, if not announce it
+      // Check if we've already announced this pod
       const announcedToChannelsPerPod = new Map<string, Set<string>>();
       for await (const podAnnounce of this.discover(
         object.channels,
@@ -199,6 +206,7 @@ export class GraffitiClient {
         }
       }
 
+      // Announce it if necessary
       const announcements: Promise<any>[] = [];
       for (const pod of this.bootstrapPods) {
         const channelsToAnnounce = announcedToChannelsPerPod.has(pod)
@@ -206,6 +214,7 @@ export class GraffitiClient {
               (channel) => !announcedToChannelsPerPod.get(pod)!.has(channel),
             )
           : object.channels;
+        if (channelsToAnnounce.length === 0) continue;
         announcements.push(
           this.put<typeof POD_ANNOUNCE_SCHEMA>(
             {
@@ -530,7 +539,7 @@ export class GraffitiClient {
       async function* podIteratorFn() {
         const seenPods = new Set<string>();
         for await (const podAnnounce of podAnnounceIterator) {
-          if (podAnnounce.error) continue;
+          if (podAnnounce.error || podAnnounce.value.tombstone) continue;
           const pod = podAnnounce.value.value.podAnnounce;
           if (seenPods.has(pod)) continue;
           seenPods.add(pod);

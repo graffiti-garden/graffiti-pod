@@ -65,8 +65,11 @@ export const POD_ANNOUNCE_SCHEMA = {
 } satisfies JSONSchema4;
 
 export const USER_SETTINGS_SCHEMA = {
+  type: "object",
+  required: ["value"],
   properties: {
     value: {
+      type: "object",
       required: ["podDelegation"],
       properties: {
         podDelegation: {
@@ -83,4 +86,4 @@ export const USER_SETTINGS_SCHEMA = {
       },
     },
   },
-} satisfies JSONSchema4;
+} as const satisfies JSONSchema4;

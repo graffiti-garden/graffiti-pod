@@ -71,7 +71,8 @@ export default class SettingsUrlManager {
     return output;
   }
 
-  async getSettingsUrl(webId: string, session?: { fetch?: typeof fetch }) {
+  async getSettingsUrl(webId?: string, session?: { fetch?: typeof fetch }) {
+    if (!webId) return null;
     await this.untilWebIdUnlocked(webId);
     const promise = (async () => {
       let settingsUrl = this.settingsUrlCache.get(webId);

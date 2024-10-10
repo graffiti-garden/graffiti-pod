@@ -13,7 +13,7 @@ import { locationToUrl, urlToLocation, parseLocationOrUrl } from "./types";
 import { encodeJSONBody, encodeQueryParams } from "./header-encoders";
 import LocalChanges from "./local-changes";
 import LinesFeed from "./lines-feed";
-import Ajv from "ajv";
+import Ajv, { type JSONSchemaType } from "ajv";
 import {
   GRAFFITI_OBJECT_SCHEMA,
   ORPHAN_RESULT_SCHEMA,
@@ -48,11 +48,25 @@ export class GraffitiClient {
     CHANNEL_RESULT_SCHEMA,
   );
 
-  bootstrapPods: string[] = ["https://pod.graffiti.garden"];
+  readonly defaultUserSettings: GraffitiLocalObject<
+    typeof USER_SETTINGS_SCHEMA
+  > = {
+    channels: [],
+    value: {
+      podDelegation: [
+        {
+          pod: "https://pod.graffiti.garden",
+          schema: {},
+        },
+      ],
+    },
+  };
 
-  constructor(options?: { bootstrapPods?: string[] }) {
-    if (options?.bootstrapPods) {
-      this.bootstrapPods = options.bootstrapPods;
+  constructor(options?: {
+    defaultUserSettings?: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
+  }) {
+    if (options?.defaultUserSettings) {
+      this.defaultUserSettings = options.defaultUserSettings;
     }
   }
 
@@ -82,43 +96,32 @@ export class GraffitiClient {
     return session?.fetch ?? fetch;
   }
 
-  getSettingsUrl(...args: Parameters<SettingsUrlManager["getSettingsUrl"]>) {
+  getUserSettingsUrl(
+    ...args: Parameters<SettingsUrlManager["getSettingsUrl"]>
+  ) {
     return this.settingsUrlManager.getSettingsUrl(...args);
   }
-  setSettingsUrl(...args: Parameters<SettingsUrlManager["setSettingsUrl"]>) {
+  setUserSettingsUrl(
+    ...args: Parameters<SettingsUrlManager["setSettingsUrl"]>
+  ) {
     return this.settingsUrlManager.setSettingsUrl(...args);
   }
-  deleteSettingsUrl(
+  deleteUserSettingsUrl(
     ...args: Parameters<SettingsUrlManager["deleteSettingsUrl"]>
   ) {
     return this.settingsUrlManager.deleteSettingsUrl(...args);
   }
-  async getSettingsWithDefaults(
+  async getUserSettingsWithDefaults(
     settingsUrl: string | null,
     session?: {
       fetch?: typeof fetch;
     },
   ): Promise<GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>> {
-    const defaultSettings = {
-      channels: [],
-      value: {
-        podDelegation: [
-          {
-            pod: "http://localhost:3000",
-            schema: {},
-          },
-          {
-            pod: "https://pod.graffiti.garden",
-            schema: {},
-          },
-        ],
-      },
-    } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
-    if (!settingsUrl) return defaultSettings;
+    if (!settingsUrl) return this.defaultUserSettings;
     try {
       return await this.get(settingsUrl, USER_SETTINGS_SCHEMA, session);
     } catch {
-      return defaultSettings;
+      return this.defaultUserSettings;
     }
   }
 
@@ -195,17 +198,42 @@ export class GraffitiClient {
     }
 
     // Get the user's settings URL
-    const settingsUrl = await this.getSettingsUrl(session.webId, session);
+    const settingsUrl = await this.getUserSettingsUrl(session.webId, session);
 
     let pod: string;
+    let announceToPods: string[];
     if (
       podMaybe &&
       locationToUrl({ name, webId: session.webId, pod: podMaybe }) ===
         settingsUrl
     ) {
+      // The user is putting their user settings file itself
+      // so don't try to get it to avoid recursion
       pod = podMaybe;
+      const userSettingsType: JSONSchemaType<{
+        value: {
+          podDelegation: Array<{
+            pod: string;
+            schema: {};
+          }>;
+        };
+      }> = USER_SETTINGS_SCHEMA;
+      const validation = this.ajv.compile(userSettingsType);
+      if (!validation(object)) {
+        throw new Error(
+          "You're putting an object to your settings URL that is not valid settings",
+        );
+      }
+      announceToPods = this.podDelegation.announceToPods(
+        pod,
+        object.channels,
+        object,
+      );
     } else {
-      const settings = await this.getSettingsWithDefaults(settingsUrl, session);
+      const settings = await this.getUserSettingsWithDefaults(
+        settingsUrl,
+        session,
+      );
 
       if (podMaybe) {
         const isDelegated = this.podDelegation.isPodDelegated(
@@ -233,9 +261,28 @@ export class GraffitiClient {
           pod = delegation;
         }
       }
+
+      announceToPods = this.podDelegation.announceToPods(
+        pod,
+        object.channels,
+        settings,
+      );
     }
 
     const location: GraffitiLocation = { name, pod, webId: session.webId };
+
+    // Make the request
+    const url = locationToUrl({ name, webId: session.webId, pod });
+    const requestInit: RequestInit = { method: "PUT" };
+    encodeJSONBody(requestInit, object.value);
+    const putUrl = encodeQueryParams(url, object);
+    const response = await session.fetch(putUrl, requestInit);
+    const oldObject = await parseGraffitiObjectResponse(
+      response,
+      location,
+      false,
+    );
+    this.localChanges.put(object, oldObject);
 
     // Pod announcements provide hints that point to the
     // pod where the object can be found from a set of
@@ -268,7 +315,7 @@ export class GraffitiClient {
         } as const,
         session,
         {
-          pods: this.bootstrapPods,
+          pods: announceToPods,
         },
       )) {
         if (podAnnounce.error) continue;
@@ -283,7 +330,7 @@ export class GraffitiClient {
 
       // Announce it if necessary
       const announcements: Promise<any>[] = [];
-      for (const pod of this.bootstrapPods) {
+      for (const pod of announceToPods) {
         const channelsToAnnounce = announcedToChannelsPerPod.has(pod)
           ? object.channels.filter(
               (channel) => !announcedToChannelsPerPod.get(pod)!.has(channel),
@@ -303,18 +350,6 @@ export class GraffitiClient {
       await Promise.all(announcements);
     }
 
-    // Make the request
-    const url = locationToUrl({ name, webId: session.webId, pod });
-    const requestInit: RequestInit = { method: "PUT" };
-    encodeJSONBody(requestInit, object.value);
-    const putUrl = encodeQueryParams(url, object);
-    const response = await session.fetch(putUrl, requestInit);
-    const oldObject = await parseGraffitiObjectResponse(
-      response,
-      location,
-      false,
-    );
-    this.localChanges.put(object, oldObject);
     return oldObject;
   }
 
@@ -350,9 +385,12 @@ export class GraffitiClient {
     const object = await parseGraffitiObjectResponse(response, location, true);
 
     // Make sure the pod is delegated by the user
-    const settingsUrl = await this.getSettingsUrl(location.webId, session);
+    const settingsUrl = await this.getUserSettingsUrl(location.webId, session);
     if (settingsUrl !== url) {
-      const settings = await this.getSettingsWithDefaults(settingsUrl, session);
+      const settings = await this.getUserSettingsWithDefaults(
+        settingsUrl,
+        session,
+      );
       const isDelegated = this.podDelegation.isPodDelegated(
         settings,
         location.pod,
@@ -407,6 +445,8 @@ export class GraffitiClient {
       location,
       false,
     );
+
+    // TODO: delete all hanging announcements
     this.localChanges.delete(oldObject);
     return oldObject;
   }
@@ -457,6 +497,7 @@ export class GraffitiClient {
       location,
       false,
     );
+    // TODO: delete all hanging announcements
     this.localChanges.patch(patch, oldObject);
     return oldObject;
   }
@@ -485,9 +526,8 @@ export class GraffitiClient {
     const pods =
       options?.pods ??
       (async () => {
-        const settingsUrl = await this.getSettingsUrl(session.webId, session);
-        const settings = await this.getSettingsWithDefaults(
-          settingsUrl,
+        const settings = await this.getUserSettingsWithDefaults(
+          await this.getUserSettingsUrl(session.webId, session),
           session,
         );
         return this.podDelegation.allPodsDelegated(settings);
@@ -537,9 +577,8 @@ export class GraffitiClient {
     const pods =
       options?.pods ??
       (async () => {
-        const settingsUrl = await this.getSettingsUrl(session.webId, session);
-        const settings = await this.getSettingsWithDefaults(
-          settingsUrl,
+        const settings = await this.getUserSettingsWithDefaults(
+          await this.getUserSettingsUrl(session.webId, session),
           session,
         );
         return this.podDelegation.allPodsDelegated(settings);
@@ -631,17 +670,23 @@ export class GraffitiClient {
     if (options?.pods) {
       podIterator = options.pods;
     } else {
-      const podAnnounceIterator = this.discover(
-        channels,
-        POD_ANNOUNCE_SCHEMA,
-        session,
-        {
-          ...options,
-          pods: this.bootstrapPods,
-        },
-      );
+      const this_ = this;
       async function* podIteratorFn() {
         const seenPods = new Set<string>();
+        const settings = await this_.getUserSettingsWithDefaults(
+          await this_.getUserSettingsUrl(session?.webId, session),
+          session,
+        );
+        const bootstrapPods = this_.podDelegation.allPodsDelegated(settings);
+        const podAnnounceIterator = this_.discover(
+          channels,
+          POD_ANNOUNCE_SCHEMA,
+          session,
+          {
+            ...options,
+            pods: bootstrapPods,
+          },
+        );
         for await (const podAnnounce of podAnnounceIterator) {
           if (podAnnounce.error || podAnnounce.value.tombstone) continue;
           const pod = podAnnounce.value.value.podAnnounce;
@@ -669,8 +714,8 @@ export class GraffitiClient {
           lastModified: new Date(partial.lastModified),
         };
 
-        const settings = await this.getSettingsWithDefaults(
-          await this.getSettingsUrl(object.webId, session),
+        const settings = await this.getUserSettingsWithDefaults(
+          await this.getUserSettingsUrl(object.webId, session),
           session,
         );
         if (!this.podDelegation.isPodDelegated(settings, pod, object)) {

@@ -5,17 +5,46 @@ import {
   randomValue,
   solidLogin,
 } from "./test-utils";
-import GraffitiClient, {
+import GraffitiClient_, {
+  type GraffitiObject,
   type GraffitiObjectBase,
   type GraffitiPatch,
   type JSONSchema4,
 } from ".";
 import { POD_ANNOUNCE_SCHEMA } from "./schemas";
 
+const NOT_POD_ANNOUNCE_SCHEMA = {
+  properties: {
+    value: {
+      not: {
+        required: ["podAnnounce"],
+      },
+    },
+  },
+} as const satisfies JSONSchema4;
+
 const { fetch, webId } = await solidLogin();
 
 const homePod = "http://localhost:3000";
 const randomLocation = () => randomGenericLocation(webId, homePod);
+
+class GraffitiClient extends GraffitiClient_ {
+  constructor() {
+    super({
+      defaultUserSettings: {
+        channels: [],
+        value: {
+          podDelegation: [
+            {
+              pod: homePod,
+              schema: {},
+            },
+          ],
+        },
+      },
+    });
+  }
+}
 
 it("Put, replace, delete", async () => {
   const value = {
@@ -226,9 +255,14 @@ it("query single", async () => {
 
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
+  const iterator = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
   const result = await iterator.next();
   expect(result.done).toBe(false);
   if (result.value?.error) throw new Error();
@@ -244,14 +278,19 @@ it("query with good and bad pods", async () => {
   const channels = [randomString(), randomString()];
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator = graffiti.discover(channels, {}, undefined, {
-    pods: [
-      "https://google.com",
-      "asldkfj",
-      "https://alsdkfjkjdkfjdkjfk.askdfjkdjk",
-      homePod,
-    ],
-  });
+  const iterator = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [
+        "https://google.com",
+        "asldkfj",
+        "https://alsdkfjkjdkfjdkjfk.askdfjkdjk",
+        homePod,
+      ],
+    },
+  );
   const results: Awaited<ReturnType<typeof iterator.next>>[] = [];
   for (let i = 0; i < 4; i++) {
     results.push(await iterator.next());
@@ -276,9 +315,14 @@ it("query multiple", async () => {
   await graffiti.put({ value: values[1], channels }, randomLocation(), {
     fetch,
   });
-  const iterator = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
+  const iterator = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
   const result1 = await iterator.next();
   if (result1.value?.error) throw new Error();
   expect(result1.value?.value.value).toEqual(values[1]);
@@ -387,10 +431,15 @@ it("query with last modified", async () => {
   const lastModified2 = (await graffiti.get(location2, {})).lastModified;
   expect(lastModified.getTime()).toBeLessThan(lastModified2.getTime());
 
-  const iterator = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-    ifModifiedSince: new Date(lastModified.getTime() + 1),
-  });
+  const iterator = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+      ifModifiedSince: new Date(lastModified.getTime() + 1),
+    },
+  );
   const result1 = await iterator.next();
   if (result1.value?.error) throw new Error();
   expect(result1.value?.value.value).toEqual(value);
@@ -405,9 +454,14 @@ it("query multiple times", async () => {
   const value = randomValue();
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
+  const iterator = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
   const result1 = await iterator.next();
   if (result1.value?.error) throw new Error();
   expect(result1.value?.value.value).toEqual(value);
@@ -417,9 +471,14 @@ it("query multiple times", async () => {
   const location2 = randomLocation();
   await graffiti.put({ value: value2, channels }, location2, { fetch });
 
-  const iterator2 = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
+  const iterator2 = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
   const result21 = await iterator2.next();
   if (result21.value?.error) throw new Error();
   expect(result21.value?.value.value).toEqual(value2);
@@ -428,10 +487,15 @@ it("query multiple times", async () => {
   expect(result22.value?.value.value).toEqual(value);
   expect(await iterator2.next()).toHaveProperty("done", true);
 
-  const iterator3 = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-    ifModifiedSince: new Date(0),
-  });
+  const iterator3 = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+      ifModifiedSince: new Date(0),
+    },
+  );
   const result31 = await iterator3.next();
   if (result31.value?.error) throw new Error();
   expect(result31.value?.value.value).toEqual(value2);
@@ -448,15 +512,30 @@ it("concurrent queries", async () => {
   const value = randomValue();
   await graffiti.put({ value, channels }, location, { fetch });
 
-  const iterator1 = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
-  const iterator2 = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
-  const iterator3 = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
+  const iterator1 = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
+  const iterator2 = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
+  const iterator3 = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
 
   const [result1, result2, result3] = await Promise.all([
     iterator1.next(),
@@ -752,9 +831,10 @@ it("list channels", async () => {
     ),
   );
   expect(newChannels.size).toBe(3);
-  expect(newChannels.get(channels[0])).toBe(6);
-  expect(newChannels.get(channels[1])).toBe(5);
-  expect(newChannels.get(channels[2])).toBe(4);
+  // Plus one is for pod announce in each channel
+  expect(newChannels.get(channels[0])).toBe(6 + 1);
+  expect(newChannels.get(channels[1])).toBe(5 + 1);
+  expect(newChannels.get(channels[2])).toBe(4 + 1);
 });
 
 it("list channels with ifModifiedSince", async () => {
@@ -789,9 +869,10 @@ it("list channels with ifModifiedSince", async () => {
     newChannels.set(channel.value.channel, channel.value.count);
   }
   expect(newChannels.size).toBe(3);
-  expect(newChannels.get(channels[0])).toBe(3);
-  expect(newChannels.get(channels[1])).toBe(3);
-  expect(newChannels.get(channels[2])).toBe(3);
+  // Plus one is for pod announce in each channel
+  expect(newChannels.get(channels[0])).toBe(3 + 1);
+  expect(newChannels.get(channels[1])).toBe(3 + 1);
+  expect(newChannels.get(channels[2])).toBe(3 + 1);
 });
 
 it("list channels with deleted channel", async () => {
@@ -911,7 +992,7 @@ it("put accessed controlled and fetch with then without authentication (make sur
 
   const authIterator = graffiti.discover(
     channels,
-    {},
+    NOT_POD_ANNOUNCE_SCHEMA,
     {
       fetch,
       webId,
@@ -931,18 +1012,37 @@ it("put accessed controlled and fetch with then without authentication (make sur
 
   await expect(authIterator.next()).resolves.toHaveProperty("done", true);
 
-  const unauthIterator = graffiti.discover(channels, {}, undefined, {
-    pods: [homePod],
-  });
+  const unauthIterator = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
   const unauthResult = await unauthIterator.next();
   expect(unauthResult.done).toBe(true);
 });
 
 it("query with pod announces", async () => {
-  const bootstrapPods = ["https://pod.graffiti.garden"];
-  expect(bootstrapPods[0]).not.toBe(homePod);
-  const graffiti = new GraffitiClient({
-    bootstrapPods,
+  const bootstrapPod = "https://pod.graffiti.garden";
+  expect(bootstrapPod).not.toBe(homePod);
+  const graffiti = new GraffitiClient_({
+    defaultUserSettings: {
+      channels: [],
+      value: {
+        podDelegation: [
+          {
+            pod: homePod,
+            schema: {},
+          },
+          {
+            pod: bootstrapPod,
+            schema: POD_ANNOUNCE_SCHEMA,
+          },
+        ],
+      },
+    },
   });
   const channels = [randomString(), randomString(), randomString()];
   const location = randomLocation();
@@ -950,28 +1050,60 @@ it("query with pod announces", async () => {
   await graffiti.put({ value, channels }, location, { fetch });
 
   const iterator = graffiti.discover(channels, POD_ANNOUNCE_SCHEMA, undefined, {
-    pods: bootstrapPods,
+    pods: [bootstrapPod],
   });
 
   const result = await iterator.next();
   if (result.done || result.value.error) throw new Error();
-  expect(result.value.value.pod).toBe(bootstrapPods[0]);
+  expect(result.value.value.pod).toBe(bootstrapPod);
   expect(result.value.value.value.podAnnounce).toBe(homePod);
   await expect(iterator.next()).resolves.toHaveProperty("done", true);
 
-  const iterator2 = graffiti.discover(channels, {}, undefined);
+  const iterator2 = graffiti.discover(
+    channels,
+    NOT_POD_ANNOUNCE_SCHEMA,
+    undefined,
+  );
   const result2 = await iterator2.next();
   if (result2.done || result2.value.error) throw new Error();
   expect(result2.value.value.value).toEqual(value);
   expect(result2.value.value.pod).toEqual(homePod);
   await expect(iterator2.next()).resolves.toHaveProperty("done", true);
+
+  const iterator3 = graffiti.discover(
+    channels,
+    POD_ANNOUNCE_SCHEMA,
+    undefined,
+    {
+      pods: [homePod],
+    },
+  );
+  const result3 = await iterator3.next();
+  if (result3.done || result3.value.error) throw new Error();
+  expect(result3.value.value.pod).toBe(homePod);
+  expect(result3.value.value.value.podAnnounce).toBe(homePod);
+  await expect(iterator3.next()).resolves.toHaveProperty("done", true);
 });
 
 it("query with pod announces, multiple channels", async () => {
-  const bootstrapPods = ["https://pod.graffiti.garden"];
-  expect(bootstrapPods[0]).not.toBe(homePod);
-  const graffiti = new GraffitiClient({
-    bootstrapPods,
+  const bootstrapPod = "https://pod.graffiti.garden";
+  expect(bootstrapPod).not.toBe(homePod);
+  const graffiti = new GraffitiClient_({
+    defaultUserSettings: {
+      channels: [],
+      value: {
+        podDelegation: [
+          {
+            pod: homePod,
+            schema: {},
+          },
+          {
+            pod: bootstrapPod,
+            schema: POD_ANNOUNCE_SCHEMA,
+          },
+        ],
+      },
+    },
   });
   const channels = [randomString(), randomString()];
   await graffiti.put(
@@ -987,12 +1119,12 @@ it("query with pod announces, multiple channels", async () => {
     [channels[0]],
     POD_ANNOUNCE_SCHEMA,
     undefined,
-    { pods: bootstrapPods },
+    { pods: [bootstrapPod] },
   );
   const result1 = await iterator1.next();
   if (result1.done || result1.value.error) throw new Error();
   expect(result1.value.value.channels).toEqual([channels[0]]);
-  expect(result1.value.value.pod).toBe(bootstrapPods[0]);
+  expect(result1.value.value.pod).toBe(bootstrapPod);
   expect(result1.value.value.value.podAnnounce).toBe(homePod);
   await expect(iterator1.next()).resolves.toHaveProperty("done", true);
 
@@ -1000,12 +1132,12 @@ it("query with pod announces, multiple channels", async () => {
     [channels[1]],
     POD_ANNOUNCE_SCHEMA,
     undefined,
-    { pods: bootstrapPods },
+    { pods: [bootstrapPod] },
   );
   const result2 = await iterator2.next();
   if (result2.done || result2.value.error) throw new Error();
   expect(result2.value.value.channels).toEqual([channels[1]]);
-  expect(result2.value.value.pod).toBe(bootstrapPods[0]);
+  expect(result2.value.value.pod).toBe(bootstrapPod);
   expect(result2.value.value.value.podAnnounce).toBe(homePod);
   await expect(iterator2.next()).resolves.toHaveProperty("done", true);
 });

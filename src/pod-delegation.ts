@@ -1,6 +1,6 @@
 import type Ajv from "ajv";
 import type { GraffitiLocalObject } from "./types";
-import { USER_SETTINGS_SCHEMA } from "./schemas";
+import { USER_SETTINGS_SCHEMA, POD_ANNOUNCE_SCHEMA } from "./schemas";
 
 export default class PodDelegation {
   constructor(private readonly ajv: Ajv) {}
@@ -54,5 +54,25 @@ export default class PodDelegation {
       }
     }
     return null;
+  }
+
+  announceToPods(
+    podAnnounce: string,
+    channels: string[],
+    settings: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>,
+  ) {
+    const delegation = this.delegationFromSettings(settings);
+    const announceObject: GraffitiLocalObject<typeof POD_ANNOUNCE_SCHEMA> = {
+      value: { podAnnounce },
+      channels,
+    };
+    const pods = delegation.reduce<string[]>((acc, { pod, schema }) => {
+      const validateObject = this.ajv.compile(schema);
+      if (validateObject(announceObject)) {
+        acc.push(pod);
+      }
+      return acc;
+    }, []);
+    return [...new Set(pods)];
   }
 }

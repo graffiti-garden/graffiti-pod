@@ -1,4 +1,5 @@
-import Delegation from "./delegation";
+import SettingsUrlManager from "./settings-url";
+import PodDelegation from "./pod-delegation";
 import type {
   GraffitiLocation,
   GraffitiObjectBase,
@@ -18,6 +19,7 @@ import {
   ORPHAN_RESULT_SCHEMA,
   CHANNEL_RESULT_SCHEMA,
   POD_ANNOUNCE_SCHEMA,
+  USER_SETTINGS_SCHEMA,
 } from "./schemas";
 
 export * from "./types";
@@ -30,12 +32,13 @@ export type { JSONSchema4 };
  * and reactivity.
  */
 export class GraffitiClient {
-  readonly delegation = new Delegation();
   private readonly linesFeed = new LinesFeed();
   private ajv = new Ajv({
     strictTypes: false,
   });
+  private readonly settingsUrlManager = new SettingsUrlManager();
   private readonly localChanges = new LocalChanges(this.ajv);
+  private readonly podDelegation = new PodDelegation(this.ajv);
   private readonly validateGraffitiObject = this.ajv.compile(
     GRAFFITI_OBJECT_SCHEMA,
   );
@@ -79,6 +82,46 @@ export class GraffitiClient {
     return session?.fetch ?? fetch;
   }
 
+  getSettingsUrl(...args: Parameters<SettingsUrlManager["getSettingsUrl"]>) {
+    return this.settingsUrlManager.getSettingsUrl(...args);
+  }
+  setSettingsUrl(...args: Parameters<SettingsUrlManager["setSettingsUrl"]>) {
+    return this.settingsUrlManager.setSettingsUrl(...args);
+  }
+  deleteSettingsUrl(
+    ...args: Parameters<SettingsUrlManager["deleteSettingsUrl"]>
+  ) {
+    return this.settingsUrlManager.deleteSettingsUrl(...args);
+  }
+  async getSettingsWithDefaults(
+    settingsUrl: string | null,
+    session?: {
+      fetch?: typeof fetch;
+    },
+  ): Promise<GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>> {
+    const defaultSettings = {
+      channels: [],
+      value: {
+        podDelegation: [
+          {
+            pod: "http://localhost:3000",
+            schema: {},
+          },
+          {
+            pod: "https://pod.graffiti.garden",
+            schema: {},
+          },
+        ],
+      },
+    } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
+    if (!settingsUrl) return defaultSettings;
+    try {
+      return await this.get(settingsUrl, USER_SETTINGS_SCHEMA, session);
+    } catch {
+      return defaultSettings;
+    }
+  }
+
   /**
    * PUTs a new object to the given location specified by a `webId`, `name`,
    * and `pod` or equivalently a Graffiti URL. If no `name` is provided,
@@ -110,54 +153,89 @@ export class GraffitiClient {
   ): Promise<GraffitiObjectBase>;
   async put<Schema>(
     object: GraffitiLocalObject<Schema>,
-    session: { fetch: typeof fetch; pod: string; webId: string },
+    session: { fetch: typeof fetch; webId: string; pod?: string },
   ): Promise<GraffitiObjectBase>;
   async put<Schema>(
     object: GraffitiLocalObject<Schema>,
     locationOrUrlOrSession:
       | string
-      | { name?: string; pod: string; webId: string; fetch?: typeof fetch },
-    session?: { fetch: typeof fetch },
+      | { name?: string; pod?: string; webId: string; fetch?: typeof fetch },
+    optionalSession?: { fetch: typeof fetch },
   ): Promise<GraffitiObjectBase> {
-    let location: GraffitiLocation;
-    let url: string;
-    let fetch = this.whichFetch(session);
+    let nameMaybe: string | undefined;
+    let podMaybe: string | undefined;
+    let session: { fetch: typeof fetch; webId: string };
 
     if (typeof locationOrUrlOrSession === "string") {
-      const parsed = parseLocationOrUrl(locationOrUrlOrSession);
-      location = parsed.location;
-      url = parsed.url;
+      const { location } = parseLocationOrUrl(locationOrUrlOrSession);
+      nameMaybe = location.name;
+      podMaybe = location.pod;
+      session = {
+        fetch: this.whichFetch(optionalSession),
+        webId: location.webId,
+      };
     } else {
-      let { webId, name, pod, fetch: fetch_ } = locationOrUrlOrSession ?? {};
-      if (!webId) {
-        throw new Error(
-          "no webId provided to PUT either via the location or session.",
-        );
-      }
-      if (!pod) {
-        throw new Error(
-          "no pod provided to PUT either via the location or session.",
-        );
-      }
-
-      if (!name) {
-        // Generate a random name if none is provided
-        const bytes = new Uint8Array(16);
-        crypto.getRandomValues(bytes);
-        // Convert it to base64
-        const base64 = btoa(String.fromCodePoint(...bytes));
-        // Make sure it is url safe
-        name = base64
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/\=+$/, "");
-      }
-
-      location = { webId, pod, name };
-      url = this.locationToUrl(location);
-
-      if (fetch_) fetch = fetch_;
+      let { webId, name, pod, fetch: fetch_ } = locationOrUrlOrSession;
+      session = { fetch: fetch_ ?? this.whichFetch(optionalSession), webId };
+      nameMaybe = name;
+      podMaybe = pod;
     }
+
+    let name: string;
+    if (nameMaybe) {
+      name = nameMaybe;
+    } else {
+      // Generate a random name if none is provided
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      // Convert it to base64
+      const base64 = btoa(String.fromCodePoint(...bytes));
+      // Make sure it is url safe
+      name = base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/\=+$/, "");
+    }
+
+    // Get the user's settings URL
+    const settingsUrl = await this.getSettingsUrl(session.webId, session);
+
+    let pod: string;
+    if (
+      podMaybe &&
+      locationToUrl({ name, webId: session.webId, pod: podMaybe }) ===
+        settingsUrl
+    ) {
+      pod = podMaybe;
+    } else {
+      const settings = await this.getSettingsWithDefaults(settingsUrl, session);
+
+      if (podMaybe) {
+        const isDelegated = this.podDelegation.isPodDelegated(
+          settings,
+          podMaybe,
+          object,
+        );
+        if (!isDelegated) {
+          throw new Error(
+            `The pod ${podMaybe} is not delegated in your settings.`,
+          );
+        }
+        pod = podMaybe;
+      } else {
+        const delegation = this.podDelegation.whichPodDelegated(
+          settings,
+          object,
+        );
+
+        if (!delegation) {
+          throw new Error(
+            "No delegated pod found for this object. Please edit your settings.",
+          );
+        } else {
+          pod = delegation;
+        }
+      }
+    }
+
+    const location: GraffitiLocation = { name, pod, webId: session.webId };
 
     // Pod announcements provide hints that point to the
     // pod where the object can be found from a set of
@@ -188,10 +266,7 @@ export class GraffitiClient {
             },
           },
         } as const,
-        {
-          webId: location.webId,
-          fetch,
-        },
+        session,
         {
           pods: this.bootstrapPods,
         },
@@ -221,23 +296,19 @@ export class GraffitiClient {
               value: { podAnnounce: location.pod },
               channels: channelsToAnnounce,
             },
-            {
-              fetch,
-              webId: location.webId,
-              pod,
-            },
+            { ...session, pod },
           ),
         );
       }
       await Promise.all(announcements);
     }
 
-    await this.delegation.addPod(location.webId, location.pod, session);
+    // Make the request
+    const url = locationToUrl({ name, webId: session.webId, pod });
     const requestInit: RequestInit = { method: "PUT" };
     encodeJSONBody(requestInit, object.value);
-
-    url = encodeQueryParams(url, object);
-    const response = await fetch(url, requestInit);
+    const putUrl = encodeQueryParams(url, object);
+    const response = await session.fetch(putUrl, requestInit);
     const oldObject = await parseGraffitiObjectResponse(
       response,
       location,
@@ -275,20 +346,31 @@ export class GraffitiClient {
     session?: { fetch?: typeof fetch },
   ): Promise<GraffitiObject<Schema>> {
     const { location, url } = parseLocationOrUrl(locationOrUrl);
-    if (
-      !(await this.delegation.hasPod(location.webId, location.pod, session))
-    ) {
-      throw new Error(
-        `The Graffiti pod ${location.pod} is not registered with the WebID ${location.webId}`,
-      );
-    }
     const response = await this.whichFetch(session)(url);
-
     const object = await parseGraffitiObjectResponse(response, location, true);
 
+    // Make sure the pod is delegated by the user
+    const settingsUrl = await this.getSettingsUrl(location.webId, session);
+    if (settingsUrl !== url) {
+      const settings = await this.getSettingsWithDefaults(settingsUrl, session);
+      const isDelegated = this.podDelegation.isPodDelegated(
+        settings,
+        location.pod,
+        object,
+      );
+      if (!isDelegated) {
+        throw new Error(
+          `The Graffiti pod ${location.pod} is not delegated by the WebID ${location.webId} for the following object:\n ${JSON.stringify(object, null, 2)}.`,
+        );
+      }
+    }
+
+    // Make sure it conforms to the provided schema
     const validate = this.ajv.compile(schema);
     if (!validate(object)) {
-      throw new Error("The fetched object does not match the provided schema.");
+      throw new Error(
+        `The following fetched object does not match the provided schema:\n ${JSON.stringify(object, null, 2)}.`,
+      );
     }
     return object;
   }
@@ -400,6 +482,17 @@ export class GraffitiClient {
       ifModifiedSince?: Date;
     },
   ) {
+    const pods =
+      options?.pods ??
+      (async () => {
+        const settingsUrl = await this.getSettingsUrl(session.webId, session);
+        const settings = await this.getSettingsWithDefaults(
+          settingsUrl,
+          session,
+        );
+        return this.podDelegation.allPodsDelegated(settings);
+      })();
+
     return this.linesFeed.streamMultiple(
       "list-channels",
       (line, pod) => {
@@ -413,7 +506,7 @@ export class GraffitiClient {
           pod,
         };
       },
-      options?.pods ?? this.delegation.getPods(session.webId, session),
+      pods,
       session,
       options,
     );
@@ -441,6 +534,17 @@ export class GraffitiClient {
       ifModifiedSince?: Date;
     },
   ) {
+    const pods =
+      options?.pods ??
+      (async () => {
+        const settingsUrl = await this.getSettingsUrl(session.webId, session);
+        const settings = await this.getSettingsWithDefaults(
+          settingsUrl,
+          session,
+        );
+        return this.podDelegation.allPodsDelegated(settings);
+      })();
+
     return this.linesFeed.streamMultiple(
       "list-orphans",
       (line, pod) => {
@@ -454,7 +558,7 @@ export class GraffitiClient {
           pod,
         };
       },
-      options?.pods ?? this.delegation.getPods(session.webId, session),
+      pods,
       session,
       options,
     );
@@ -565,15 +669,20 @@ export class GraffitiClient {
           lastModified: new Date(partial.lastModified),
         };
 
+        const settings = await this.getSettingsWithDefaults(
+          await this.getSettingsUrl(object.webId, session),
+          session,
+        );
+        if (!this.podDelegation.isPodDelegated(settings, pod, object)) {
+          throw new Error(
+            `The pod ${pod} returned the following object not authorized by its owner:\n ${JSON.stringify(object, null, 2)}`,
+          );
+        }
+
         if (!validate(object)) {
           throw new Error("Object does match schema");
         }
 
-        if (
-          !(await this.delegation.hasPod(object.webId, object.pod, session))
-        ) {
-          throw new Error("Pod returned an object not authorized by its owner");
-        }
         return object;
       },
       podIterator,

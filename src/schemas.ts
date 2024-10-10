@@ -63,3 +63,24 @@ export const POD_ANNOUNCE_SCHEMA = {
     },
   },
 } satisfies JSONSchema4;
+
+export const USER_SETTINGS_SCHEMA = {
+  properties: {
+    value: {
+      required: ["podDelegation"],
+      properties: {
+        podDelegation: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["pod", "schema"],
+            properties: {
+              pod: { type: "string" },
+              schema: { type: "object" },
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies JSONSchema4;

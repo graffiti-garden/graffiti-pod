@@ -14,6 +14,16 @@ export default class PodDelegation {
     }>;
   }
 
+  allPodsDelegated(settings: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>) {
+    return [
+      ...new Set(
+        this.delegationFromSettings(settings).map(
+          (delegatedPod) => delegatedPod.pod,
+        ),
+      ),
+    ];
+  }
+
   isPodDelegated(
     settings: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>,
     pod: string,

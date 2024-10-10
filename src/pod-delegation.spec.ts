@@ -161,3 +161,61 @@ it("which pod delegates what", async () => {
     }),
   ).toBe(null);
 });
+
+it("all pod delegations", async () => {
+  const pod1 = `https://${randomString()}.com`;
+  const pod2 = `https://${randomString()}.com`;
+  const pod3 = `https://${randomString()}.com`;
+  const settings = {
+    value: {
+      podDelegation: [
+        {
+          pod: pod1,
+          schema: {
+            type: "object",
+            required: ["something"],
+            properties: {
+              something: { type: "string" },
+            },
+          },
+        },
+        {
+          pod: pod2,
+          schema: {
+            type: "object",
+          },
+        },
+        {
+          pod: pod1,
+          schema: {
+            type: "object",
+            required: ["value"],
+            properties: {
+              value: {
+                type: "object",
+              },
+            },
+          },
+        },
+        {
+          pod: pod3,
+          schema: {
+            type: "object",
+            required: ["value"],
+            properties: {
+              value: {
+                type: "object",
+              },
+            },
+          },
+        },
+      ],
+    },
+    channels: [],
+  } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
+
+  const manager = new PodDelegation(new Ajv());
+  expect(manager.allPodsDelegated(settings).sort()).toEqual(
+    [pod1, pod2, pod3].sort(),
+  );
+});

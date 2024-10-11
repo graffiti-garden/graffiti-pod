@@ -37,10 +37,6 @@ export type GraffitiSession =
       fetch: typeof fetch;
       webId: string;
     }
-  | {
-      fetch?: undefined;
-      webId?: undefined;
-    }
   | undefined;
 
 /**

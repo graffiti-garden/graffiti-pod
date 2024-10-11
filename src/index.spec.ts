@@ -912,9 +912,12 @@ it("list channels with deleted channel", async () => {
     newChannels.set(channel.value.channel, channel.value.count);
   }
   expect(newChannels.size).toBe(3);
-  expect(newChannels.get(channels[0])).toBe(0);
-  expect(newChannels.get(channels[1])).toBe(1);
-  expect(newChannels.get(channels[2])).toBe(1);
+  // Plus one is for pod announce in each channel
+  // TODO: when pod announcements get deleted this
+  // will need to change
+  expect(newChannels.get(channels[0])).toBe(0 + 1);
+  expect(newChannels.get(channels[1])).toBe(1 + 1);
+  expect(newChannels.get(channels[2])).toBe(1 + 1);
 });
 
 it("list with good and bad pods", async () => {

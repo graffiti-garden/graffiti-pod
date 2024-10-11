@@ -1,21 +1,15 @@
 ## TODO:
 
 - documentation!!
-- schema for get to return a typed object
-- webId currently just include a list of delegted pods, but should be update to include:
-  - schemas for each delegated pod. For example, I may only
-    want to post "hints" to major pods that point to my smaller pods.
-  - forwarding rules that map objects from one pod to another.
-    This is important for data portability, if a pod either goes
-    down or becomes untrusted.
-  - rules for which pod to post to when creating new objects.
-    Each rule should have a specified schema. This will reduce
-    the need for a "pod" field in the GraffitiSession type.
-- when discovering in a channel, run another discover in that channel on
-  objects of type { type: "PodHint", pod: "https://pod.example.com" }.
-  Use the results to query for more related objects.
-  - likewise, whenever a user posts, they should also post a hint
-    to all pods that they know about.
+- Refactor pod announcements into its own file.
+  pod announcments should also handle access control lists
+  (not leaking publication to a channel via the pod announcement)
+  and should also handle deletions (if a user deletes something)
+  Something along the lines of
+    - `updatePodAnnouncements(objectBefore: GraffitiObject|undefined, objectAfter: GraffitiObject|undefined): void`
+  During this refactor, perhaps there should be a seperate index.ts file
+  specifically "raw" REST/discover operations that doesn't take into
+  account pod announcements or delegation verification.
 - less important:
   - more testing
   - local changes for listChannels / listOphans

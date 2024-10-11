@@ -128,14 +128,22 @@ export class GraffitiClient {
   /**
    * PUTs a new object to the given location specified by a `webId`, `name`,
    * and `pod` or equivalently a Graffiti URL. If no `name` is provided,
-   * a random one will be generated.
+   * a random one will be generated. If no `pod` is provided, the first pod
+   * listed in the user's settings with a schema that matches the object will
+   * be used. If a `pod` is provided, it must be listed in the user's settings
+   * with a schema that matches the object.
    *
    * The supplied object must contain a `value`, `channels`, and optionally
-   * an access control list (`acl`). It is also type-checked against the
+   * an access control list (`acl`) of webIds. It is also type-checked against the
    * [JSON schema](https://json-schema.org/) that can be optionally provided
    * as the generic type parameter. We highly recommend providing a schema to
    * ensure that the PUT object matches subsequent {@link get} or {@link discover}
    * operations.
+   *
+   * In addition to putting the specified object, this function will also PUT
+   * "pod announcement" objects to each of the user's pods in any of the
+   * object's channels that do not already contain such an announcement. This is
+   * necessary to ensure that the object is discoverable by other users.
    *
    * An authenticated `fetch` function must be provided in the `session` object.
    * See {@link GraffitiSession} for more information.
@@ -358,6 +366,8 @@ export class GraffitiClient {
    * and `pod` or equivalently a Graffiti URL.
    *
    * The object is type-checked against the provided [JSON schema](https://json-schema.org/).
+   * The object is also verified to be delegated by it's owner's settings file
+   * to its pod with a matching schema.
    *
    * An authenticated fetch function must be provided in the `session` object
    * to GET access-controlled objects. See {@link GraffitiSession} for more

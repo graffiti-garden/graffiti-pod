@@ -32,20 +32,16 @@ export interface GraffitiPatch {
   acl?: JSONPatchOperation[];
 }
 
-export type GraffitiSession = {
-  pods: string[];
-} & (
+export type GraffitiSession =
   | {
-      pod: string;
       fetch: typeof fetch;
       webId: string;
     }
   | {
-      pod?: undefined;
       fetch?: undefined;
       webId?: undefined;
     }
-);
+  | undefined;
 
 /**
  * Convert a {@link GraffitiLocation} object containing a

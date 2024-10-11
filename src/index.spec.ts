@@ -6,7 +6,6 @@ import {
   solidLogin,
 } from "./test-utils";
 import GraffitiClient_, {
-  type GraffitiObject,
   type GraffitiObjectBase,
   type GraffitiPatch,
   type JSONSchema4,
@@ -57,7 +56,7 @@ it("Put, replace, delete", async () => {
   const previous = await graffiti.put({ value, channels: [] }, location, {
     fetch,
   });
-  expect(previous.value).toBeUndefined();
+  expect(previous.value).toEqual({});
   expect(previous.name).toEqual(location.name);
   expect(previous.webId).toEqual(location.webId);
   expect(previous.pod).toEqual(location.pod);

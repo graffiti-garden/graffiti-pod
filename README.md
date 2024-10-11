@@ -10,6 +10,7 @@
   During this refactor, perhaps there should be a seperate index.ts file
   specifically "raw" REST/discover operations that doesn't take into
   account pod announcements or delegation verification.
+- Add forwarding rules to webId settings.
 - less important:
   - more testing
   - local changes for listChannels / listOphans

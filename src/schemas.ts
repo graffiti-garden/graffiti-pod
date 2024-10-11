@@ -70,16 +70,22 @@ export const USER_SETTINGS_SCHEMA = {
   properties: {
     value: {
       type: "object",
-      required: ["podDelegation"],
+      required: ["settings"],
       properties: {
-        podDelegation: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["pod", "schema"],
-            properties: {
-              pod: { type: "string" },
-              schema: { type: "object" },
+        settings: {
+          type: "object",
+          required: ["pods"],
+          properties: {
+            pods: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["pod"],
+                properties: {
+                  pod: { type: "string" },
+                  delegateIfMatching: { type: "object", nullable: true },
+                },
+              },
             },
           },
         },

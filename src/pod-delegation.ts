@@ -8,13 +8,13 @@ export default class PodDelegation {
   delegationFromSettings(
     settings: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>,
   ) {
-    return settings.value.podDelegation as Array<{
+    return settings.value.settings.pods as Array<{
       pod: string;
-      schema: {};
+      delegateIfMatching?: {};
     }>;
   }
 
-  allPodsDelegated(settings: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>) {
+  allPods(settings: GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>) {
     return [
       ...new Set(
         this.delegationFromSettings(settings).map(
@@ -32,8 +32,9 @@ export default class PodDelegation {
     const delegation = this.delegationFromSettings(settings);
     const schemas = delegation
       .filter((delegatedPod) => delegatedPod.pod === pod)
-      .map((delegatedPod) => delegatedPod.schema);
+      .map((delegatedPod) => delegatedPod.delegateIfMatching);
     for (const schema of schemas) {
+      if (!schema) continue;
       const validateObject = this.ajv.compile(schema);
       if (validateObject(object)) {
         return true;
@@ -47,8 +48,9 @@ export default class PodDelegation {
     object: {},
   ) {
     const delegation = this.delegationFromSettings(settings);
-    for (const { pod, schema } of delegation) {
-      const validateObject = this.ajv.compile(schema);
+    for (const { pod, delegateIfMatching } of delegation) {
+      if (!delegateIfMatching) continue;
+      const validateObject = this.ajv.compile(delegateIfMatching);
       if (validateObject(object)) {
         return pod;
       }
@@ -66,13 +68,17 @@ export default class PodDelegation {
       value: { podAnnounce },
       channels,
     };
-    const pods = delegation.reduce<string[]>((acc, { pod, schema }) => {
-      const validateObject = this.ajv.compile(schema);
-      if (validateObject(announceObject)) {
-        acc.push(pod);
-      }
-      return acc;
-    }, []);
+    const pods = delegation.reduce<string[]>(
+      (acc, { pod, delegateIfMatching }) => {
+        if (!delegateIfMatching) return acc;
+        const validateObject = this.ajv.compile(delegateIfMatching);
+        if (validateObject(announceObject)) {
+          acc.push(pod);
+        }
+        return acc;
+      },
+      [],
+    );
     return [...new Set(pods)];
   }
 }

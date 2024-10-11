@@ -9,14 +9,16 @@ it("one pod delegates anything", async () => {
   const pod = `https://${randomString()}.com`;
   const settings = {
     value: {
-      podDelegation: [
-        {
-          pod,
-          schema: {
-            type: "object",
+      settings: {
+        pods: [
+          {
+            pod,
+            delegateIfMatching: {
+              type: "object",
+            },
           },
-        },
-      ],
+        ],
+      },
     },
     channels: [],
   } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
@@ -40,28 +42,33 @@ it("one pod delegates some things, another pod delegates others", async () => {
   const pod2 = `https://${randomString()}.com`;
   const settings = {
     value: {
-      podDelegation: [
-        {
-          pod: pod1,
-          schema: {
-            type: "object",
-            properties: {
-              something: { type: "string" },
+      settings: {
+        pods: [
+          {
+            pod: pod1,
+            delegateIfMatching: {
+              type: "object",
+              properties: {
+                something: { type: "string" },
+              },
+              required: ["something"],
             },
-            required: ["something"],
           },
-        },
-        {
-          pod: pod2,
-          schema: {
-            type: "object",
-            properties: {
-              otherthings: { type: "string" },
+          {
+            pod: pod2,
+            delegateIfMatching: {
+              type: "object",
+              properties: {
+                otherthings: { type: "string" },
+              },
+              required: ["otherthings"],
             },
-            required: ["otherthings"],
           },
-        },
-      ],
+          {
+            pod: `https://${randomString()}.com`,
+          },
+        ],
+      },
     },
     channels: [],
   } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
@@ -106,36 +113,41 @@ it("which pod delegates what", async () => {
 
   const settings = {
     value: {
-      podDelegation: [
-        {
-          pod: pod1,
-          schema: {
-            type: "object",
-            required: ["value"],
-            properties: {
-              value: {
-                type: "object",
-                properties: {
-                  something: { type: "string" },
+      settings: {
+        pods: [
+          {
+            pod: pod1,
+            delegateIfMatching: {
+              type: "object",
+              required: ["value"],
+              properties: {
+                value: {
+                  type: "object",
+                  properties: {
+                    something: { type: "string" },
+                  },
+                  required: ["something"],
                 },
-                required: ["something"],
               },
             },
           },
-        },
-        {
-          pod: pod2,
-          schema: {
-            type: "object",
-            required: ["value"],
-            properties: {
-              value: {
-                type: "object",
+          {
+            pod: `https://${randomString()}.com`,
+          },
+          {
+            pod: pod2,
+            delegateIfMatching: {
+              type: "object",
+              required: ["value"],
+              properties: {
+                value: {
+                  type: "object",
+                },
               },
             },
           },
-        },
-      ],
+        ],
+      },
     },
     channels: [],
   } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
@@ -162,61 +174,67 @@ it("which pod delegates what", async () => {
   ).toBe(null);
 });
 
-it("all pod delegations", async () => {
+it("all pods", async () => {
   const pod1 = `https://${randomString()}.com`;
   const pod2 = `https://${randomString()}.com`;
   const pod3 = `https://${randomString()}.com`;
+  const pod4 = `https://${randomString()}.com`;
   const settings = {
     value: {
-      podDelegation: [
-        {
-          pod: pod1,
-          schema: {
-            type: "object",
-            required: ["something"],
-            properties: {
-              something: { type: "string" },
-            },
-          },
-        },
-        {
-          pod: pod2,
-          schema: {
-            type: "object",
-          },
-        },
-        {
-          pod: pod1,
-          schema: {
-            type: "object",
-            required: ["value"],
-            properties: {
-              value: {
-                type: "object",
+      settings: {
+        pods: [
+          {
+            pod: pod1,
+            delegateIfMatching: {
+              type: "object",
+              required: ["something"],
+              properties: {
+                something: { type: "string" },
               },
             },
           },
-        },
-        {
-          pod: pod3,
-          schema: {
-            type: "object",
-            required: ["value"],
-            properties: {
-              value: {
-                type: "object",
+          {
+            pod: pod2,
+            delegateIfMatching: {
+              type: "object",
+            },
+          },
+          {
+            pod: pod4,
+          },
+          {
+            pod: pod1,
+            delegateIfMatching: {
+              type: "object",
+              required: ["value"],
+              properties: {
+                value: {
+                  type: "object",
+                },
               },
             },
           },
-        },
-      ],
+          {
+            pod: pod3,
+            schema: {
+              type: "object",
+              required: ["value"],
+              properties: {
+                value: {
+                  type: "object",
+                },
+              },
+            },
+          },
+        ],
+      },
     },
     channels: [],
   } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;
 
   const manager = new PodDelegation(new Ajv());
-  expect(manager.allPodsDelegated(settings).sort()).toEqual(
-    [pod1, pod2, pod3].sort(),
+  expect(manager.allPods(settings).sort()).toEqual(
+    [pod1, pod2, pod3, pod4].sort(),
   );
 });
 
@@ -226,39 +244,44 @@ it("announce to pods", async () => {
   const pod3 = `https://${randomString()}.com`;
   const settings = {
     value: {
-      podDelegation: [
-        {
-          pod: pod1,
-          schema: {
-            type: "object",
-            required: ["value"],
-            properties: {
-              value: {
-                type: "object",
-                required: ["podAnnounce"],
-                properties: {
-                  podAnnounce: {
-                    type: "string",
+      settings: {
+        pods: [
+          {
+            pod: pod1,
+            delegateIfMatching: {
+              type: "object",
+              required: ["value"],
+              properties: {
+                value: {
+                  type: "object",
+                  required: ["podAnnounce"],
+                  properties: {
+                    podAnnounce: {
+                      type: "string",
+                    },
                   },
                 },
               },
             },
           },
-        },
-        {
-          pod: pod3,
-          schema: {
-            type: "object",
-            required: ["somethingDifferent"],
+          {
+            pod: `https://${randomString()}.com`,
           },
-        },
-        {
-          pod: pod2,
-          schema: {
-            type: "object",
+          {
+            pod: pod3,
+            delegateIfMatching: {
+              type: "object",
+              required: ["somethingDifferent"],
+            },
           },
-        },
-      ],
+          {
+            pod: pod2,
+            delegateIfMatching: {
+              type: "object",
+            },
+          },
+        ],
+      },
     },
     channels: [],
   } satisfies GraffitiLocalObject<typeof USER_SETTINGS_SCHEMA>;

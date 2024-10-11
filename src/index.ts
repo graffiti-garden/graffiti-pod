@@ -53,12 +53,14 @@ export class GraffitiClient {
   > = {
     channels: [],
     value: {
-      podDelegation: [
-        {
-          pod: "https://pod.graffiti.garden",
-          schema: {},
-        },
-      ],
+      settings: {
+        pods: [
+          {
+            pod: "https://pod.graffiti.garden",
+            delegateIfMatching: {},
+          },
+        ],
+      },
     },
   };
 
@@ -220,10 +222,12 @@ export class GraffitiClient {
       pod = podMaybe;
       const userSettingsType: JSONSchemaType<{
         value: {
-          podDelegation: Array<{
-            pod: string;
-            schema: {};
-          }>;
+          settings: {
+            pods: Array<{
+              pod: string;
+              delegateIfMatching?: {};
+            }>;
+          };
         };
       }> = USER_SETTINGS_SCHEMA;
       const validation = this.ajv.compile(userSettingsType);
@@ -540,7 +544,7 @@ export class GraffitiClient {
           await this.getUserSettingsUrl(session.webId, session),
           session,
         );
-        return this.podDelegation.allPodsDelegated(settings);
+        return this.podDelegation.allPods(settings);
       })();
 
     return this.linesFeed.streamMultiple(
@@ -591,7 +595,7 @@ export class GraffitiClient {
           await this.getUserSettingsUrl(session.webId, session),
           session,
         );
-        return this.podDelegation.allPodsDelegated(settings);
+        return this.podDelegation.allPods(settings);
       })();
 
     return this.linesFeed.streamMultiple(
@@ -687,7 +691,7 @@ export class GraffitiClient {
           await this_.getUserSettingsUrl(session?.webId, session),
           session,
         );
-        const bootstrapPods = this_.podDelegation.allPodsDelegated(settings);
+        const bootstrapPods = this_.podDelegation.allPods(settings);
         const podAnnounceIterator = this_.discover(
           channels,
           POD_ANNOUNCE_SCHEMA,

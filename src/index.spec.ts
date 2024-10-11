@@ -34,12 +34,14 @@ class GraffitiClient extends GraffitiClient_ {
       defaultUserSettings: {
         channels: [],
         value: {
-          podDelegation: [
-            {
-              pod: homePod,
-              schema: {},
-            },
-          ],
+          settings: {
+            pods: [
+              {
+                pod: homePod,
+                delegateIfMatching: {},
+              },
+            ],
+          },
         },
       },
     });
@@ -1034,16 +1036,18 @@ it("query with pod announces", async () => {
     defaultUserSettings: {
       channels: [],
       value: {
-        podDelegation: [
-          {
-            pod: homePod,
-            schema: {},
-          },
-          {
-            pod: bootstrapPod,
-            schema: POD_ANNOUNCE_SCHEMA,
-          },
-        ],
+        settings: {
+          pods: [
+            {
+              pod: homePod,
+              delegateIfMatching: {},
+            },
+            {
+              pod: bootstrapPod,
+              delegateIfMatching: POD_ANNOUNCE_SCHEMA,
+            },
+          ],
+        },
       },
     },
   });
@@ -1095,16 +1099,18 @@ it("query with pod announces, multiple channels", async () => {
     defaultUserSettings: {
       channels: [],
       value: {
-        podDelegation: [
-          {
-            pod: homePod,
-            schema: {},
-          },
-          {
-            pod: bootstrapPod,
-            schema: POD_ANNOUNCE_SCHEMA,
-          },
-        ],
+        settings: {
+          pods: [
+            {
+              pod: homePod,
+              delegateIfMatching: {},
+            },
+            {
+              pod: bootstrapPod,
+              delegateIfMatching: POD_ANNOUNCE_SCHEMA,
+            },
+          ],
+        },
       },
     },
   });

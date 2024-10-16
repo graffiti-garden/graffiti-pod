@@ -1,6 +1,17 @@
 import { parseErrorResponse } from "./response-parsers";
 import { Repeater } from "@repeaterjs/repeater";
 
+type ValueOrError<T> =
+  | {
+      error: false;
+      value: T;
+    }
+  | {
+      error: true;
+      message: string;
+      pod: string;
+    };
+
 export default class LinesFeed {
   private decoder = new TextDecoder();
   // TODO: make this persistent
@@ -183,36 +194,18 @@ export default class LinesFeed {
     }
   }
 
-  async *streamMultiple<T>(
+  streamMultiple<T>(
     urlPath: string,
     parser: (line: string, pod: string) => T | Promise<T>,
     pods: AsyncGenerator<string, void, void> | Promise<string[]> | string[],
-    session?:
-      | {
-          fetch: typeof fetch;
-          webId: string;
-        }
-      | { fetch?: undefined; webId?: undefined },
+    session?: {
+      fetch: typeof fetch;
+      webId: string;
+    },
     options?: {
       ifModifiedSince?: Date;
     },
-  ): AsyncGenerator<
-    | {
-        error: false;
-        value: T;
-      }
-    | {
-        error: true;
-        message: string;
-        pod: string;
-      },
-    void,
-    void
-  > {
-    const this_ = this;
-
-    const iterators: ReturnType<typeof this_.streamMultiple<T>>[] = [];
-
+  ): AsyncGenerator<ValueOrError<T>, void, void> {
     let podsIterator: AsyncGenerator<string, void, void>;
     if (Array.isArray(pods) || pods instanceof Promise) {
       podsIterator = (async function* () {
@@ -224,54 +217,47 @@ export default class LinesFeed {
       podsIterator = pods;
     }
 
-    for await (const pod of podsIterator) {
-      const iteratorFn = async function* (): (typeof iterators)[0] {
-        let origin: string;
-        try {
-          origin = new URL(pod).origin;
-        } catch (e) {
-          yield {
-            error: true,
-            message: e!.toString(),
-            pod,
-          };
-          return;
-        }
-        const url = `${origin}/${urlPath}`;
+    const this_ = this;
+    return new Repeater<ValueOrError<T>, void, void>(async (push, stop) => {
+      const iterators: Promise<void>[] = [];
 
-        try {
-          for await (const line of this_.stream(url, session, options)) {
-            let value: T;
-            try {
-              value = await parser(line, pod);
-            } catch (e) {
-              yield {
-                error: true,
-                message: e!.toString(),
-                pod,
-              };
-              continue;
-            }
-
-            yield {
-              error: false,
-              value,
-            };
+      for await (const pod of podsIterator) {
+        const pushError = async (e: unknown) => {
+          const message = e instanceof Error ? e.toString() : JSON.stringify(e);
+          await push({ error: true, message, pod });
+        };
+        const iteratorFn = async function () {
+          let origin: string;
+          try {
+            origin = new URL(pod).origin;
+          } catch (e) {
+            return await pushError(e);
           }
-        } catch (e) {
-          yield {
-            error: true,
-            message: e!.toString(),
-            pod,
-          };
-        }
-      };
-      iterators.push(iteratorFn());
-    }
+          const url = `${origin}/${urlPath}`;
 
-    const merged = Repeater.merge(iterators);
-    for await (const value of merged) {
-      yield value;
-    }
+          try {
+            for await (const line of this_.stream(url, session, options)) {
+              let value: T;
+              try {
+                value = await parser(line, pod);
+              } catch (e) {
+                await pushError(e);
+                continue;
+              }
+
+              await push({
+                error: false,
+                value,
+              });
+            }
+          } catch (e) {
+            await pushError(e);
+          }
+        };
+        iterators.push(iteratorFn());
+      }
+      await Promise.allSettled(iterators);
+      stop();
+    });
   }
 }

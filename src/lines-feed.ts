@@ -82,16 +82,31 @@ export default class LinesFeed {
       webId: session?.webId,
     });
 
-    // Share the results of concurrent requests
-    const lock = this.locks.get(cacheKey);
-    if (lock) {
-      const lines = await lock;
-      for (const line of lines) {
-        yield line;
+    // Check the cache
+    let lastModified: Date | undefined = undefined;
+    if (options?.ifModifiedSince) {
+      lastModified = options?.ifModifiedSince;
+    } else {
+      const cached = this.cache.get(cacheKey);
+      if (cached) {
+        const expires = cached.expires;
+        if (expires && new Date() > expires) {
+          this.cache.delete(cacheKey);
+        } else {
+          lastModified = cached.lastModified;
+          for (const line of cached.lines) yield line;
+        }
       }
-      return;
     }
 
+    // Wait for a lock and pass along intermediate results
+    let lock = this.locks.get(cacheKey);
+    while (lock) {
+      for (const result of await lock) yield result;
+      lock = this.locks.get(cacheKey);
+    }
+
+    // Aquire the lock
     let resolveLock: (lines: string[]) => void = () => {};
     this.locks.set(
       cacheKey,
@@ -103,24 +118,7 @@ export default class LinesFeed {
       }),
     );
 
-    let lastModified: Date | undefined = undefined;
-    let cachedLines: string[] = [];
-
-    if (options?.ifModifiedSince) {
-      lastModified = options?.ifModifiedSince;
-    } else {
-      const cached = this.cache.get(cacheKey);
-      if (cached) {
-        const expires = cached.expires;
-        if (expires && new Date() > expires) {
-          this.cache.delete(cacheKey);
-        } else {
-          lastModified = cached.lastModified;
-          cachedLines = cached.lines;
-        }
-      }
-    }
-
+    const timeBeforeRequest = new Date();
     let response: Response;
     try {
       response = await (session?.fetch ?? fetch)(url, {
@@ -140,20 +138,7 @@ export default class LinesFeed {
 
     if (response.status === 200 || response.status === 204) {
       this.cache.delete(cacheKey);
-      cachedLines = [];
     }
-
-    const newLines: string[] = [];
-    try {
-      for await (const line of this.parseResponse(response)) {
-        newLines.push(line);
-      }
-    } catch (e) {
-      resolveLock([]);
-      throw e;
-    }
-
-    const lines = [...newLines, ...cachedLines];
 
     let lastModifiedNew: Date | undefined = undefined;
     const lastModifiedString = response.headers.get("Last-Modified");
@@ -174,24 +159,31 @@ export default class LinesFeed {
     if (maxAgeString !== undefined) {
       const maxAgeSeconds = parseInt(maxAgeString, 10);
       if (!Number.isNaN(maxAgeSeconds) && maxAgeSeconds > 0) {
-        const now = new Date();
-        expires = new Date(now.getTime() + maxAgeSeconds * 1000);
+        expires = new Date(timeBeforeRequest.getTime() + maxAgeSeconds * 1000);
       }
     }
+
+    const newLines: string[] = [];
+    try {
+      for await (const line of this.parseResponse(response)) {
+        newLines.push(line);
+      }
+    } catch (e) {
+      resolveLock([]);
+      throw e;
+    }
+    newLines.reverse();
 
     if (lastModifiedNew) {
       this.cache.set(cacheKey, {
         lastModified: lastModifiedNew,
         expires,
-        lines,
+        lines: [...(this.cache.get(cacheKey)?.lines ?? []), ...newLines],
       });
     }
 
-    resolveLock(lines);
-
-    for (const line of lines) {
-      yield line;
-    }
+    resolveLock(newLines);
+    for (const line of newLines) yield line;
   }
 
   streamMultiple<T>(

@@ -326,10 +326,10 @@ it("query multiple", async () => {
   );
   const result1 = await iterator.next();
   if (result1.value?.error) throw new Error();
-  expect(result1.value?.value.value).toEqual(values[1]);
+  expect(result1.value?.value.value).toEqual(values[0]);
   const result2 = await iterator.next();
   if (result2.value?.error) throw new Error();
-  expect(result2.value?.value.value).toEqual(values[0]);
+  expect(result2.value?.value.value).toEqual(values[1]);
   const result3 = await iterator.next();
   expect(result3.done).toBe(true);
 });
@@ -482,10 +482,10 @@ it("query multiple times", async () => {
   );
   const result21 = await iterator2.next();
   if (result21.value?.error) throw new Error();
-  expect(result21.value?.value.value).toEqual(value2);
+  expect(result21.value?.value.value).toEqual(value);
   const result22 = await iterator2.next();
   if (result22.value?.error) throw new Error();
-  expect(result22.value?.value.value).toEqual(value);
+  expect(result22.value?.value.value).toEqual(value2);
   expect(await iterator2.next()).toHaveProperty("done", true);
 
   const iterator3 = graffiti.discover(
@@ -499,10 +499,10 @@ it("query multiple times", async () => {
   );
   const result31 = await iterator3.next();
   if (result31.value?.error) throw new Error();
-  expect(result31.value?.value.value).toEqual(value2);
+  expect(result31.value?.value.value).toEqual(value);
   const result32 = await iterator3.next();
   if (result32.value?.error) throw new Error();
-  expect(result32.value?.value.value).toEqual(value);
+  expect(result32.value?.value.value).toEqual(value2);
   expect(await iterator3.next()).toHaveProperty("done", true);
 });
 

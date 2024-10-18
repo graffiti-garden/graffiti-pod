@@ -76,7 +76,7 @@ export default class SettingsUrlManager {
     await this.untilWebIdUnlocked(webId);
     const promise = (async () => {
       let settingsUrl = this.settingsUrlCache.get(webId);
-      if (!settingsUrl) {
+      if (settingsUrl === undefined) {
         const { profileThing } = await this.getProfile(webId, session);
         settingsUrl = getUrl(profileThing, GRAFFITI_PREDICATE);
         this.settingsUrlCache.set(webId, settingsUrl);

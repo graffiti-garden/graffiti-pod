@@ -7,6 +7,8 @@ import {
   Response,
   Header,
   UnprocessableEntityException,
+  Inject,
+  Optional,
 } from "@nestjs/common";
 import { Controller } from "@nestjs/common";
 import { DecodeParam } from "../params/decodeparam.decorator";
@@ -21,19 +23,30 @@ import type {
   GraffitiObjectBase,
   GraffitiPatch,
 } from "@graffiti-garden/api";
-import { GraffitiPouchDBBase } from "@graffiti-garden/implementation-pouchdb";
+import {
+  GraffitiPouchDBBase,
+  type GraffitiPouchDBOptions,
+} from "@graffiti-garden/implementation-pouchdb";
 
 const CONTENT_TYPE = [
   "Content-Type",
   "application/json; charset=utf-8",
 ] as const;
 
-const source = "local";
-
 @Controller()
 export class StoreController {
-  graffiti = new GraffitiPouchDBBase();
-  constructor(private storeService: StoreService) {}
+  readonly graffiti: GraffitiPouchDBBase;
+  readonly source: string;
+
+  constructor(
+    private readonly storeService: StoreService,
+    @Optional()
+    @Inject("GRAFFITI_POUCHDB_OPTIONS")
+    private readonly options?: GraffitiPouchDBOptions,
+  ) {
+    this.source = options?.sourceName ?? "http://localhost";
+    this.graffiti = new GraffitiPouchDBBase(this.options);
+  }
 
   @Get("discover")
   @Header("Cache-Control", "private, no-cache")
@@ -82,7 +95,7 @@ export class StoreController {
           channels,
           allowed,
           name,
-          source,
+          source: this.source,
           value,
         },
         { actor },
@@ -105,7 +118,10 @@ export class StoreController {
     this.storeService.validateActor(actor, selfActor);
     let deleted: GraffitiObjectBase;
     try {
-      deleted = await this.graffiti.delete({ actor, name, source }, { actor });
+      deleted = await this.graffiti.delete(
+        { actor, name, source: this.source },
+        { actor },
+      );
     } catch (e) {
       throw this.storeService.catchGraffitiError(e);
     }
@@ -150,7 +166,7 @@ export class StoreController {
     try {
       patched = await this.graffiti.patch(
         patches,
-        { actor, name, source },
+        { actor, name, source: this.source },
         { actor },
       );
     } catch (e) {
@@ -172,7 +188,7 @@ export class StoreController {
     let gotten: GraffitiObjectBase;
     try {
       gotten = await this.graffiti.get(
-        { actor, name, source },
+        { actor, name, source: this.source },
         {},
         selfActor ? { actor: selfActor } : undefined,
       );

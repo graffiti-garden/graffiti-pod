@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { ExecutionContextHost } from "@nestjs/core/helpers/execution-context-host";
 import { solidLogin } from "../test/utils";
 import { UnauthorizedException } from "@nestjs/common";
+import { describe, it, expect, beforeAll } from "vitest";
 
 const port = 4000;
 
@@ -61,7 +62,7 @@ describe("Actor", () => {
     expect.assertions(1);
   });
 
-  test("invalid authorization", async () => {
+  it("invalid authorization", async () => {
     const server = createServer(async (request, response) => {
       // Remove the last charachter of the authorization header
       request.headers.authorization = request.headers.authorization?.slice(
@@ -84,7 +85,7 @@ describe("Actor", () => {
     expect.assertions(1);
   });
 
-  test("invalid dpop", async () => {
+  it("invalid dpop", async () => {
     const server = createServer(async (request, response) => {
       // Remove the last charachter of the dpop header
       request.headers.dpop = request.headers.dpop?.slice(0, -1);

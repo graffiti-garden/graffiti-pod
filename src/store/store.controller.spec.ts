@@ -3,6 +3,7 @@ import {
   type NestFastifyApplication,
   FastifyAdapter,
 } from "@nestjs/platform-fastify";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import { randomString, solidLogin } from "../test/utils";
 import { StoreModule } from "./store.module";
 import { encodeURIArray } from "../params/params.utils";
@@ -91,12 +92,12 @@ describe("StoreController", () => {
     const url = toUrl(randomString());
     const body = { [randomString()]: randomString(), "🪿": "🐣" };
     const channels = [randomString(), "://,🎨", randomString()];
-    const dateBefore = new Date();
+    const dateBefore = new Date().toUTCString();
     const responsePut = await request(solidFetch, url, "PUT", {
       body,
       channels,
     });
-    const dateAfter = new Date();
+    const dateAfter = new Date().toUTCString();
     expect(responsePut.status).toBe(201);
 
     // Fetch authenticated
@@ -112,11 +113,11 @@ describe("StoreController", () => {
     const lastModifiedAuth = responseGetAuth.headers.get(
       "last-modified",
     ) as string;
-    expect(new Date(lastModifiedAuth).getTime()).toBeGreaterThan(
-      dateBefore.getTime(),
+    expect(new Date(lastModifiedAuth).getTime()).toBeGreaterThanOrEqual(
+      new Date(dateBefore).getTime(),
     );
-    expect(new Date(lastModifiedAuth).getTime()).toBeLessThan(
-      dateAfter.getTime(),
+    expect(new Date(lastModifiedAuth).getTime()).toBeLessThanOrEqual(
+      new Date(dateAfter).getTime(),
     );
     await expect(responseGetAuth.json()).resolves.toEqual(body);
 
@@ -132,11 +133,11 @@ describe("StoreController", () => {
     const lastModifiedUnauth = responseGetAuth.headers.get(
       "last-modified",
     ) as string;
-    expect(new Date(lastModifiedUnauth).getTime()).toBeGreaterThan(
-      dateBefore.getTime(),
+    expect(new Date(lastModifiedUnauth).getTime()).toBeGreaterThanOrEqual(
+      new Date(dateBefore).getTime(),
     );
-    expect(new Date(lastModifiedUnauth).getTime()).toBeLessThan(
-      dateAfter.getTime(),
+    expect(new Date(lastModifiedUnauth).getTime()).toBeLessThanOrEqual(
+      new Date(dateAfter).getTime(),
     );
   });
 

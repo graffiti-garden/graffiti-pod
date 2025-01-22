@@ -7,6 +7,7 @@ import {
 } from "../test/utils";
 import { HttpException } from "@nestjs/common";
 import { encodeURIArray } from "../params/params.utils";
+import { describe, it, expect, beforeEach } from "vitest";
 
 describe("StoreService", () => {
   let service: StoreService;

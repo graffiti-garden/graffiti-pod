@@ -1,473 +1,115 @@
-import { Model, PipelineStage, Document } from "mongoose";
 import {
-  Injectable,
   UnauthorizedException,
-  ForbiddenException,
-  NotFoundException,
   UnprocessableEntityException,
   PreconditionFailedException,
-  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  StreamableFile,
+  InternalServerErrorException,
 } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { StoreSchema } from "./store.schema";
-import { JsonPatchError, applyPatch } from "fast-json-patch";
-import type { Operation } from "fast-json-patch";
-import { FastifyReply } from "fastify";
-import type { JSONSchema4 } from "json-schema";
+import { Readable } from "stream";
+import type { FastifyReply } from "fastify";
 import { encodeURIArray } from "../params/params.utils";
+import {
+  GraffitiErrorForbidden,
+  GraffitiErrorInvalidSchema,
+  GraffitiErrorNotFound,
+  GraffitiErrorPatchError,
+  GraffitiErrorPatchTestFailed,
+  GraffitiErrorSchemaMismatch,
+  GraffitiErrorUnauthorized,
+  type GraffitiObjectBase,
+  type GraffitiStream,
+} from "@graffiti-garden/api";
 
-export const TOMBSTONE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 1 day in ms
-export const TOMBSTONE_REMOVAL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes in ms
-
-@Injectable()
 export class StoreService {
-  constructor(
-    @InjectModel(StoreSchema.name)
-    private storeModel: Model<StoreSchema>,
-  ) {
-    setInterval(() => {
-      this.storeModel.deleteMany({
-        tombstone: true,
-        lastModified: { $lt: new Date(Date.now() - TOMBSTONE_MAX_AGE_MS) },
-      });
-    }, TOMBSTONE_REMOVAL_INTERVAL_MS);
-  }
-
-  validateWebId(targetWebId: string | null, selfWebId: string | null) {
-    if (!selfWebId) {
+  validateActor(targetActor: string | null, selfActor: string | null) {
+    if (!selfActor) {
       throw new UnauthorizedException(
         "You must be logged in to access this resource.",
       );
     }
-    if (targetWebId !== selfWebId) {
+    if (targetActor !== selfActor) {
       throw new ForbiddenException("You are not the owner of this resource.");
     }
   }
 
+  catchGraffitiError(error: unknown) {
+    if (error instanceof GraffitiErrorNotFound) {
+      return new NotFoundException(error.message);
+    } else if (error instanceof GraffitiErrorPatchError) {
+      return new UnprocessableEntityException(error.message);
+    } else if (error instanceof GraffitiErrorPatchTestFailed) {
+      return new PreconditionFailedException(error.message);
+    } else if (error instanceof GraffitiErrorForbidden) {
+      return new ForbiddenException(error.message);
+    } else if (error instanceof GraffitiErrorUnauthorized) {
+      return new UnauthorizedException(error.message);
+    } else if (error instanceof GraffitiErrorInvalidSchema) {
+      return new UnprocessableEntityException(error.message);
+    } else if (error instanceof GraffitiErrorSchemaMismatch) {
+      return new PreconditionFailedException(error.message);
+    } else {
+      return new InternalServerErrorException(error);
+    }
+  }
+
   returnObject(
-    object: StoreSchema | null,
-    selfWebId: string | null,
+    object: GraffitiObjectBase,
     response: FastifyReply,
     put: boolean = false,
   ): Object | void {
-    if (!object) {
-      throw new NotFoundException(
-        "Cannot GET object - either it does not exist or you do not have access to it.",
-      );
-    }
-
-    if (put && object.webId === "nobody") {
+    // If the previous object is essentially, blank issue "201: Created"
+    if (
+      put &&
+      Object.keys(object.value).length === 0 &&
+      object.channels.length === 0 &&
+      object.allowed === undefined
+    ) {
       response.status(201);
+    } else {
+      response.status(200);
     }
 
-    if (selfWebId === object.webId) {
-      if (object.acl) {
-        response.header("access-control-list", encodeURIArray(object.acl));
-      }
+    if (object.allowed) {
+      response.header("allowed", encodeURIArray(object.allowed));
+    }
+    if (object.channels.length) {
       response.header("channels", encodeURIArray(object.channels));
     }
-
-    response.header("last-modified", object.lastModified.toISOString());
+    response.header(
+      "last-modified",
+      new Date(object.lastModified).toUTCString(),
+    );
 
     return object.value;
   }
 
-  async deleteObject(webId: string, name: string, modifiedBefore?: Date) {
-    return await this.storeModel.findOneAndUpdate(
-      {
-        webId,
-        name,
-        tombstone: false,
-        ...(modifiedBefore ? { lastModified: { $lt: modifiedBefore } } : {}),
-      },
-      {
-        $set: {
-          tombstone: true,
-          // Set the modified date to the
-          // same date as the requesting date
-          ...(modifiedBefore ? { lastModified: modifiedBefore } : {}),
-        },
-      },
-      {
-        sort: { lastModified: 1 },
-        timestamps: !modifiedBefore,
-        new: true,
-      },
-    );
-  }
-
-  async getObject(
-    webId: string,
-    name: string,
-    selfWebId: string | null,
-  ): Promise<(Document<unknown, {}, StoreSchema> & StoreSchema) | null> {
-    return await this.storeModel.findOne(
-      {
-        webId,
-        name,
-        tombstone: false,
-        ...this.aclQuery(selfWebId),
-      },
-      null,
-      {
-        sort: { lastModified: -1 },
-      },
-    );
-  }
-
-  async putObject(object: StoreSchema) {
-    // Try to insert the object
-    let putObject: StoreSchema;
-    try {
-      putObject = await new this.storeModel(object).save();
-    } catch (e) {
-      if (e.name === "ValidationError") {
-        throw new UnprocessableEntityException(e.message);
-      } else {
-        throw e;
-      }
-    }
-
-    // Apply tombstones to other objects
-    const output = await this.deleteObject(
-      object.webId,
-      object.name,
-      putObject.lastModified,
-    );
-    if (output) {
-      return output;
+  async iteratorToStreamableFile<T, S>(
+    iterator: GraffitiStream<T, S>,
+    response: FastifyReply,
+  ): Promise<StreamableFile> {
+    let firstResult = await iterator.next();
+    if (firstResult.done) {
+      response.status(204);
     } else {
-      // Return the lastModified date via a dummy
-      // with a webId that will be caught for the
-      // correct "201" response
-      const dummy = new this.storeModel();
-      dummy.lastModified = putObject.lastModified;
-      dummy.tombstone = true;
-      dummy.webId = "nobody";
-      return dummy;
+      response.status(200);
     }
-  }
 
-  async patchObject(
-    webId: string,
-    name: string,
-    patches: {
-      value?: Operation[];
-      acl?: Operation[];
-      channels?: Operation[];
-    },
-  ): Promise<StoreSchema | null> {
-    // Get the original
-    const doc = await this.getObject(webId, name, webId);
-    if (!doc) return doc;
-
-    // Patch it outside of the database
-    for (const [prop, patch] of Object.entries(patches)) {
-      if (!patch) continue;
-      if (!Array.isArray(patch)) {
-        throw new UnprocessableEntityException(
-          `Patch of ${prop} must be an array`,
-        );
+    const byteIterator = (async function* () {
+      if (firstResult.done) return;
+      if (!firstResult.value.error) {
+        yield Buffer.from(JSON.stringify(firstResult.value.value));
       }
-      if (!patch.length) continue;
-      try {
-        doc[prop] = applyPatch(doc[prop], patch, true).newDocument;
-      } catch (e) {
-        if (e.name === "TEST_OPERATION_FAILED") {
-          throw new PreconditionFailedException(e.message);
-        } else if (e instanceof JsonPatchError) {
-          throw new UnprocessableEntityException(e.message);
-        } else {
-          throw e;
-        }
+      for await (const object of iterator) {
+        if (object.error) continue;
+        yield Buffer.from("\n");
+        yield Buffer.from(JSON.stringify(object.value));
       }
-      doc.markModified(prop);
-    }
-
-    // Force the doc to be new
-    doc.isNew = true;
-    doc._id = undefined;
-
-    // Try and save the patched object
-    let patchedObject: StoreSchema;
-    try {
-      patchedObject = await doc.save();
-    } catch (e) {
-      if (e.name == "VersionError") {
-        throw new ConflictException("Concurrent write, try again.");
-      } else if (e.name === "ValidationError") {
-        throw new UnprocessableEntityException(e.message);
-      } else {
-        throw e;
-      }
-    }
-
-    // Delete and return the original object
-    return await this.deleteObject(webId, name, patchedObject.lastModified);
-  }
-
-  private aclQuery(selfWebId: string | null) {
-    return {
-      $or: [
-        { acl: { $exists: false } },
-        { acl: selfWebId },
-        { webId: selfWebId! },
-      ],
-    };
-  }
-
-  private ifNotOwner(prop: string, selfWebId: string | null, otherwise: any) {
-    return {
-      $cond: {
-        if: { $eq: ["$webId", selfWebId] },
-        then: `$${prop}`,
-        else: otherwise,
-      },
-    };
-  }
-
-  private ifModifiedSinceQuery(ifModifiedSince?: Date) {
-    // TODO: gt can cause trouble with concurrent writes
-    return ifModifiedSince ? { lastModified: { $gt: ifModifiedSince } } : {};
-  }
-
-  async *listOrphans(
-    selfWebId: string | null,
-    options?: {
-      ifModifiedSince?: Date;
-    },
-  ): AsyncGenerator<
-    {
-      name: string;
-      lastModified: Date;
-      tombstone: boolean;
-    },
-    void,
-    void
-  > {
-    for await (const output of this.storeModel.aggregate([
-      // Find all objects that have no channels,
-      // are owned by the user, and have been modified
-      // since the ifModifiedSince date
-      {
-        $match: {
-          webId: selfWebId,
-          channels: { $size: 0 },
-          ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
-        },
-      },
-      // Filter out ACL, channels, and value which aren't relevant here.
-      {
-        $project: {
-          _id: 0,
-          name: 1,
-          lastModified: 1,
-          tombstone: 1,
-        },
-      },
-      // Get the most recent version of each object
-      {
-        $sort: { lastModified: -1, tombstone: 1 },
-      },
-      {
-        $group: {
-          _id: "$name",
-          lastModified: { $first: "$lastModified" },
-          tombstone: { $first: "$tombstone" },
-        },
-      },
-      // Fix the output
-      {
-        $project: {
-          _id: 0,
-          name: "$_id",
-          lastModified: 1,
-          tombstone: 1,
-        },
-      },
-    ])) {
-      yield output;
-    }
-  }
-
-  async *listChannels(
-    selfWebId: string | null,
-    options?: {
-      ifModifiedSince?: Date;
-    },
-  ): AsyncGenerator<
-    {
-      channel: string;
-      count: number;
-      lastModified: Date;
-    },
-    void,
-    void
-  > {
-    for await (const output of this.storeModel.aggregate([
-      // Get all documents that have at least one channel
-      // and are owned by the current user
-      {
-        $match: {
-          webId: selfWebId,
-          channels: { $exists: true, $ne: [] },
-        },
-      },
-      // This may return a lot of results, so filter out
-      // the values and ACL since they're not needed here
-      {
-        $project: {
-          _id: 0,
-          channels: 1,
-          lastModified: 1,
-          name: 1,
-          tombstone: 1,
-        },
-      },
-      // Get the most recent version of
-      // each document, per channel
-      {
-        $unwind: "$channels",
-      },
-      {
-        $sort: { lastModified: -1, tombstone: 1 },
-      },
-      {
-        $group: {
-          _id: {
-            name: "$name",
-            channel: "$channels",
-          },
-          lastModified: { $first: "$lastModified" },
-          tombstone: { $first: "$tombstone" },
-        },
-      },
-      // Count up the remaining objects in each channel
-      {
-        $group: {
-          _id: "$_id.channel",
-          count: {
-            $sum: {
-              $cond: {
-                if: "$tombstone",
-                then: 0,
-                else: 1,
-              },
-            },
-          },
-          lastModified: { $max: "$lastModified" },
-        },
-      },
-      // Filter out anything old
-      {
-        $match: this.ifModifiedSinceQuery(options?.ifModifiedSince),
-      },
-      // And fix the output
-      {
-        $project: {
-          _id: 0,
-          channel: "$_id",
-          count: 1,
-          lastModified: 1,
-        },
-      },
-    ])) {
-      yield output;
-    }
-  }
-
-  async *queryObjects(
-    channels: string[],
-    selfWebId: string | null,
-    options?: {
-      ifModifiedSince?: Date;
-      query?: JSONSchema4;
-      limit?: number;
-      skip?: number;
-    },
-  ): AsyncGenerator<StoreSchema, void, void> {
-    const pipeline: PipelineStage[] = [
-      // Reduce to only documents that contain
-      // at least one of the channels that
-      // the user is authorized to access before
-      // the given time.
-      {
-        $match: {
-          channels: { $elemMatch: { $in: channels } },
-          ...this.aclQuery(selfWebId),
-          ...this.ifModifiedSinceQuery(options?.ifModifiedSince),
-        },
-      },
-      // Mask out channels and ACL the user should not be able to query
-      {
-        $project: {
-          _id: 0,
-          tombstone: 1,
-          value: 1,
-          webId: 1,
-          name: 1,
-          lastModified: 1,
-          acl: this.ifNotOwner("acl", selfWebId, "$$REMOVE"),
-          channels: this.ifNotOwner("channels", selfWebId, {
-            $filter: {
-              input: "$channels",
-              as: "channel",
-              cond: {
-                $in: ["$$channel", channels],
-              },
-            },
-          }),
-        },
-      },
-      // Perform the user query if it exists
-      ...(options?.query ? [{ $match: { $jsonSchema: options.query } }] : []),
-      // Group by webId and name and reduce to only the latest
-      // version of each document
-      {
-        $sort: { lastModified: -1, tombstone: 1 },
-      },
-      {
-        $group: {
-          _id: { webId: "$webId", name: "$name" },
-          value: { $first: "$value" },
-          lastModified: { $first: "$lastModified" },
-          acl: { $first: "$acl" },
-          channels: { $first: "$channels" },
-          tombstone: { $first: "$tombstone" },
-        },
-      },
-      // fix the webId/name fields
-      {
-        $project: {
-          _id: 0,
-          tombstone: 1,
-          value: 1,
-          webId: "$_id.webId",
-          name: "$_id.name",
-          lastModified: 1,
-          acl: 1,
-          channels: 1,
-        },
-      },
-      // Sort again after grouping
-      {
-        $sort: { lastModified: -1 },
-      },
-      // Add optional skip and limits
-      ...(options?.skip ? [{ $skip: options.skip }] : []),
-      ...(options?.limit ? [{ $limit: options.limit }] : []),
-    ];
-
-    try {
-      for await (const doc of this.storeModel.aggregate(pipeline)) {
-        yield doc;
-      }
-    } catch (e) {
-      if (e.name === "MongoServerError") {
-        throw new UnprocessableEntityException(e.message);
-      } else {
-        throw e;
-      }
-    }
+    })();
+    const stream = Readable.from(byteIterator);
+    return new StreamableFile(stream, {
+      type: "text/plain",
+    });
   }
 }

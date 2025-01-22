@@ -5,14 +5,14 @@ import type {
 } from "@solid/access-token-verifier";
 import {
   createParamDecorator,
-  ExecutionContext,
+  type ExecutionContext,
   UnauthorizedException,
 } from "@nestjs/common";
 import { IncomingMessage } from "http";
 
 const verify = createSolidTokenVerifier();
 
-export const WebId = createParamDecorator(
+export const Actor = createParamDecorator(
   async (_, ctx: ExecutionContext): Promise<string | null> => {
     const request = ctx.switchToHttp().getRequest() as IncomingMessage;
 

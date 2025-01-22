@@ -1,5 +1,5 @@
 import { ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
-import { WebId } from "./webid.decorator";
+import { Actor } from "./actor.decorator";
 import { createServer } from "http";
 import { ExecutionContextHost } from "@nestjs/core/helpers/execution-context-host";
 import { solidLogin } from "../test/utils";
@@ -7,17 +7,17 @@ import { UnauthorizedException } from "@nestjs/common";
 
 const port = 4000;
 
-describe("WebId", () => {
+describe("Actor", () => {
   function getWebIdFactory(decorator: Function) {
     class Test {
-      test(@decorator() webId: string | null) {}
+      test(@decorator() actor: string | null) {}
     }
 
     const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, Test, "test");
     return args[Object.keys(args)[0]].factory;
   }
 
-  let webId: string;
+  let actor: string;
   let authenticatedFetch: typeof fetch;
 
   beforeAll(async () => {
@@ -26,15 +26,15 @@ describe("WebId", () => {
     if (!login.webId) {
       throw "No webId in login object";
     }
-    webId = login.webId;
+    actor = login.webId;
   });
 
   it("plain fetch", async () => {
     const server = createServer(async (request, response) => {
       const ctx = new ExecutionContextHost([request, response]);
-      const factory = getWebIdFactory(WebId);
-      const webId = await factory(null, ctx);
-      expect(webId).toBeNull();
+      const factory = getWebIdFactory(Actor);
+      const actor = await factory(null, ctx);
+      expect(actor).toBeNull();
       response.end();
     });
     server.listen(port);
@@ -47,9 +47,9 @@ describe("WebId", () => {
   it("authenticated fetch", async () => {
     const server = createServer(async (request, response) => {
       const ctx = new ExecutionContextHost([request, response]);
-      const factory = getWebIdFactory(WebId);
+      const factory = getWebIdFactory(Actor);
       const webIdReceived = await factory(null, ctx);
-      expect(webIdReceived).toEqual(webId);
+      expect(webIdReceived).toEqual(actor);
       response.end();
     });
     server.listen(port);
@@ -69,7 +69,7 @@ describe("WebId", () => {
         -1,
       );
       const ctx = new ExecutionContextHost([request, response]);
-      const factory = getWebIdFactory(WebId);
+      const factory = getWebIdFactory(Actor);
       try {
         await factory(null, ctx);
       } catch (e) {
@@ -89,7 +89,7 @@ describe("WebId", () => {
       // Remove the last charachter of the dpop header
       request.headers.dpop = request.headers.dpop?.slice(0, -1);
       const ctx = new ExecutionContextHost([request, response]);
-      const factory = getWebIdFactory(WebId);
+      const factory = getWebIdFactory(Actor);
       try {
         await factory(null, ctx);
       } catch (e) {

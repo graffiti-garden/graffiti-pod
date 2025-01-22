@@ -1,7 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import {
   FastifyAdapter,
-  NestFastifyApplication,
+  type NestFastifyApplication,
 } from "@nestjs/platform-fastify";
 import { AppModule } from "./app.module";
 
@@ -9,11 +9,9 @@ const headers = [
   "Content-Type",
   "Authorization",
   "DPoP",
-  "Acess-Control-List",
+  "Allowed",
   "Channels",
   "Last-Modified",
-  "If-Modified-Since",
-  "Range",
   "Cache-Control",
   "Vary",
   "A-IM",

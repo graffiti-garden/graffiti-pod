@@ -31,29 +31,3 @@ export function queryArrayDecorator<T>(name: string, default_: T) {
     return typeof param === "string" ? decodeURIArray(param) : default_;
   });
 }
-
-export function rangeToSkipLimit(range: string | undefined): {
-  skip?: number;
-  limit?: number;
-} {
-  if (!range) return {};
-
-  const value = range.split("=");
-  if (value.length < 2) return {};
-
-  const [start, end] = value[1].split("-");
-  let skip: number | undefined = parseInt(start, 10);
-  skip = isNaN(skip) ? undefined : skip;
-  let limit: number | undefined = parseInt(end, 10) - (skip ?? 0) + 1;
-  limit = isNaN(limit) ? undefined : limit;
-
-  return { skip, limit };
-}
-
-export function parseDateString(dateString?: string): Date | undefined {
-  const date = dateString ? new Date(dateString) : undefined;
-  if (date && isNaN(date.getTime())) {
-    throw new BadRequestException("Invalid date format.");
-  }
-  return date;
-}

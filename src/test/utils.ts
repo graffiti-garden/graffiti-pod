@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { Session } from "@inrupt/solid-client-authn-node";
-import { StoreSchema } from "../store/store.schema";
-import { FastifyReply } from "fastify";
+import type { FastifyReply } from "fastify";
 import { randomBytes } from "@noble/hashes/utils";
 import { bytesToHex } from "@noble/curves/abstract/utils";
+import type { GraffitiObjectBase } from "@graffiti-garden/api";
 
 const clientId = process.env.SOLID_CLIENT_ID;
 const clientSecret = process.env.SOLID_CLIENT_SECRET;
@@ -30,13 +30,16 @@ export function randomString(numBytes = 16) {
   return bytesToHex(randomBytes(numBytes));
 }
 
-export function randomGraffitiObject() {
-  const go = new StoreSchema();
-  go.webId = randomString();
-  go.name = randomString();
-  go.value = { [randomString()]: randomString() };
-  go.channels = [];
-  return go;
+export function randomGraffitiObject(): GraffitiObjectBase {
+  return {
+    actor: randomString(),
+    name: randomString(),
+    value: { [randomString()]: randomString() },
+    lastModified: new Date().getTime(),
+    source: randomString(),
+    tombstone: false,
+    channels: [],
+  };
 }
 
 export function responseMock() {
@@ -47,6 +50,11 @@ export function responseMock() {
     },
     getHeader(name: string) {
       return headers.get(name.toLowerCase());
+    },
+    statusCode: 400,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
     },
   } as FastifyReply;
 }

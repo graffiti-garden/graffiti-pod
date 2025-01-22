@@ -1,17 +1,28 @@
-import { BadRequestException, PipeTransform, Query } from "@nestjs/common";
+import {
+  BadRequestException,
+  type PipeTransform,
+  Query,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 
 class DecodePipe implements PipeTransform {
-  transform(value: any): any {
-    if (typeof value === "string") {
-      let query: any;
+  transform(value: any): {} {
+    if (!value) {
+      return {};
+    } else if (typeof value === "string") {
+      let schema: unknown;
       try {
-        query = JSON.parse(value);
+        schema = JSON.parse(value);
       } catch (e) {
-        throw new BadRequestException("Query is invalid JSON");
+        throw new UnprocessableEntityException("Schema is invalid JSON");
       }
-      return query;
+      if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+        throw new UnprocessableEntityException("Schema is not an object");
+      }
+      return schema;
+    } else {
+      throw new UnprocessableEntityException("Schema not understood");
     }
-    return undefined;
   }
 }
 

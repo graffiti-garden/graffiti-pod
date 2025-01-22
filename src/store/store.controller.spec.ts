@@ -1,13 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import {
-  NestFastifyApplication,
+  type NestFastifyApplication,
   FastifyAdapter,
 } from "@nestjs/platform-fastify";
 import { randomString, solidLogin } from "../test/utils";
 import { StoreModule } from "./store.module";
-import { RootMongooseModule } from "../app.module";
 import { encodeURIArray } from "../params/params.utils";
-import { Operation } from "fast-json-patch";
+import { GraffitiPatch } from "@graffiti-garden/api";
 
 describe("StoreController", () => {
   let app: NestFastifyApplication;
@@ -28,32 +27,25 @@ describe("StoreController", () => {
       body?: any;
       schema?: any;
       channels?: string[];
-      acl?: string[];
-      ifModifiedSince?: string;
-      range?: string;
+      allowed?: string[];
     },
   ) {
     url += "?";
-    const init: RequestInit = { method, headers: {} };
+    const headers = new Headers();
+    const init: RequestInit = { method, headers };
     if (options?.body) {
-      init.headers!["Content-Type"] = "application/json";
+      headers.set("Content-Type", "application/json");
       init.body = JSON.stringify(options.body);
     }
     if (options?.channels) {
       url += "channels=" + encodeURIArray(options.channels) + "&";
     }
-    if (options?.acl) {
-      url += "access-control-list=" + encodeURIArray(options.acl) + "&";
+    if (options?.allowed) {
+      url += "allowed=" + encodeURIArray(options.allowed) + "&";
     }
     if (options?.schema) {
       url +=
         "schema=" + encodeURIComponent(JSON.stringify(options.schema)) + "&";
-    }
-    if (options?.ifModifiedSince) {
-      init.headers!["If-Modified-Since"] = options.ifModifiedSince;
-    }
-    if (options?.range) {
-      init.headers!["Range"] = options.range;
     }
     return await fetch_(url, init);
   }
@@ -70,7 +62,7 @@ describe("StoreController", () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [RootMongooseModule, StoreModule],
+      imports: [StoreModule],
     }).compile();
 
     app = module.createNestApplication<NestFastifyApplication>(
@@ -110,7 +102,7 @@ describe("StoreController", () => {
     // Fetch authenticated
     const responseGetAuth = await solidFetch(url);
     expect(responseGetAuth.status).toBe(200);
-    expect(responseGetAuth.headers.get("access-control-list")).toBeNull();
+    expect(responseGetAuth.headers.get("allowed")).toBeNull();
     expect(responseGetAuth.headers.get("channels")).toBe(
       encodeURIArray(channels),
     );
@@ -148,53 +140,22 @@ describe("StoreController", () => {
     );
   });
 
-  it("get non-existant with if-modified-since", async () => {
-    const responseModified = await fetch(toUrl(randomString()), {
-      headers: {
-        "If-Modified-Since": new Date().toISOString(),
-      },
-    });
-    expect(responseModified.status).toBe(404);
-  });
-
-  it("put and get with if-modified-since", async () => {
-    const url = toUrl(randomString());
-    const body = { [randomString()]: randomString(), "🪿": "🐣" };
-    const channels = [randomString(), "://,🎨", randomString()];
-    const responsePut = await request(solidFetch, url, "PUT", {
-      body,
-      channels,
-    });
-
-    const responseModified = await fetch(url, {
-      headers: {
-        "If-Modified-Since": responsePut.headers.get("last-modified")!,
-      },
-    });
-    expect(responseModified.status).toBe(304);
-
-    const responseGet = await fetch(url);
-    expect(responseGet.status).toBe(200);
-    await expect(responseGet.json()).resolves.toEqual(body);
-  });
-
   it("put and get unauthorized", async () => {
     const url = toUrl(randomString());
-    const acl = [randomString()];
-    await request(solidFetch, url, "PUT", { acl, body: {} });
+    const allowed = [randomString()];
+    const channels = [randomString()];
+    await request(solidFetch, url, "PUT", { allowed, channels, body: {} });
 
     const responseAuth = await solidFetch(url);
     expect(responseAuth.status).toBe(200);
-    expect(responseAuth.headers.get("access-control-list")).toBe(
-      encodeURIArray(acl),
-    );
-    expect(responseAuth.headers.get("channels")).toBe("");
+    expect(responseAuth.headers.get("allowed")).toBe(encodeURIArray(allowed));
+    expect(responseAuth.headers.get("channels")).toBe(encodeURIArray(channels));
 
     const responseUnauth = await fetch(url);
     expect(responseUnauth.status).toBe(404);
     expect(responseUnauth.headers.get("last-modified")).toBeNull();
     expect(responseUnauth.headers.get("channels")).toBeNull();
-    expect(responseUnauth.headers.get("access-control-list")).toBeNull();
+    expect(responseUnauth.headers.get("allowed")).toBeNull();
   });
 
   it("put invalid body", async () => {
@@ -218,15 +179,17 @@ describe("StoreController", () => {
       body: [
         { op: "remove", path: "/before" },
         { op: "add", path: "/hello", value: "world" },
-      ] as Operation[],
+      ] as GraffitiPatch["value"],
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("channels")).toBe("");
+    expect(response.headers.get("channels")).toBeNull();
+    expect(response.headers.get("allowed")).toBeNull();
     await expect(response.json()).resolves.toEqual({ before: "something" });
 
     const getResponse = await fetch(url);
     expect(getResponse.status).toBe(200);
     expect(getResponse.headers.get("channels")).toBeNull();
+    expect(getResponse.headers.get("allowed")).toBeNull();
     await expect(getResponse.json()).resolves.toEqual({ hello: "world" });
   });
 
@@ -239,7 +202,7 @@ describe("StoreController", () => {
         { op: "remove", path: "/hello" },
         // Try to make it an array
         { op: "add", path: "", value: ["hello", "world"] },
-      ] as Operation[],
+      ] as GraffitiPatch["value"],
     });
     expect(response.status).toBe(422);
   });
@@ -266,7 +229,7 @@ describe("StoreController", () => {
     const url = toUrl(randomString());
     await request(solidFetch, url, "PUT", { body: {} });
     const response = await request(solidFetch, url, "PATCH", {
-      acl: [
+      allowed: [
         JSON.stringify({
           op: "add",
           path: "",
@@ -285,7 +248,7 @@ describe("StoreController", () => {
     const patched = await solidFetch(url);
     expect(patched.status).toBe(200);
     expect(patched.headers.get("channels")).toBe("some-channel");
-    expect(patched.headers.get("access-control-list")).toBe("some-acl");
+    expect(patched.headers.get("allowed")).toBe("some-acl");
   });
 
   it("delete non-existant", async () => {
@@ -305,7 +268,7 @@ describe("StoreController", () => {
     expect(responseGet.status).toBe(404);
   });
 
-  it("query empty", async () => {
+  it("discover empty", async () => {
     const response = await request(solidFetch, baseUrl + "/discover", "GET", {
       channels: [],
     });
@@ -314,7 +277,7 @@ describe("StoreController", () => {
     expect(output.length).toBe(0);
   });
 
-  it("query single", async () => {
+  it("discover single", async () => {
     const value = { [randomString()]: randomString() };
     const channels = [randomString(), randomString()];
     const url = toUrl(randomString());
@@ -326,27 +289,29 @@ describe("StoreController", () => {
     const output = await response.json();
     expect(output.value).toEqual(value);
     expect(output.channels.sort()).toEqual(channels.sort());
-    expect(output.acl).toBeNull();
+    expect(output.allowed).toBeUndefined();
     expect(output.tombstone).toBe(false);
   });
 
-  it("query multiple", async () => {
+  it("discover multiple", async () => {
     const value1 = { [randomString()]: randomString() + "alskdjfk\n\n\\n" };
     const value2 = { [randomString()]: randomString() + "\n😏" };
     const channels1 = [randomString(), randomString()];
     const channels2 = [randomString(), channels1[0]];
-    const putted1 = await request(solidFetch, toUrl(randomString()), "PUT", {
+    const name1 = randomString();
+    const name2 = randomString();
+    const putted1 = await request(solidFetch, toUrl(name1), "PUT", {
       body: value1,
       channels: channels1,
     });
-    const putted2 = await request(solidFetch, toUrl(randomString()), "PUT", {
+    const putted2 = await request(solidFetch, toUrl(name2), "PUT", {
       body: value2,
       channels: channels2,
     });
 
     expect(
       new Date(putted2.headers.get("last-modified")!).getTime(),
-    ).toBeGreaterThan(
+    ).toBeGreaterThanOrEqual(
       new Date(putted1.headers.get("last-modified")!).getTime(),
     );
 
@@ -355,142 +320,37 @@ describe("StoreController", () => {
       channels,
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("last-modified")).toBe(
-      putted2.headers.get("last-modified"),
-    );
     const output = await response.text();
     const parts = output.split("\n");
     expect(parts.length).toBe(2);
-    const [first, second] = parts.map((p) => JSON.parse(p));
-    expect(first.value).toEqual(value2);
-    expect(first.channels.sort()).toEqual(channels2.sort());
-    expect(first.acl).toBeNull();
-    expect(first.tombstone).toBe(false);
-    expect(second.value).toEqual(value1);
-    expect(second.channels.sort()).toEqual(channels1.sort());
-    expect(second.acl).toBeNull();
-    expect(second.tombstone).toBe(false);
-  });
-
-  it("query empty modified since", async () => {
-    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
-      ifModifiedSince: new Date().toISOString(),
-    });
-    expect(response.status).toBe(304);
-  });
-
-  it("query modified since", async () => {
-    const channels = [randomString(), randomString()];
-    const url1 = toUrl(randomString());
-    await request(solidFetch, url1, "PUT", { body: {}, channels });
-    const gotten1 = await fetch(url1);
-    const lastModified1 = new Date(gotten1.headers.get("last-modified") ?? 0);
-
-    const url2 = toUrl(randomString());
-    const value = { [randomString()]: randomString() };
-    await request(solidFetch, url2, "PUT", { body: value, channels });
-    const gotten2 = await fetch(url2);
-    const lastModified2 = new Date(gotten2.headers.get("last-modified") ?? 0);
-
-    expect(lastModified1.getTime()).toBeLessThan(lastModified2.getTime());
-
-    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
-      channels,
-      ifModifiedSince: lastModified1.toISOString(),
-    });
-    expect(response.headers.get("last-modified")).toBe(
-      lastModified2.toISOString(),
-    );
-    expect(response.status).toBe(226);
-    expect(response.headers.get("im")).toBe("prepend");
-    // Output only contains the last value
-    const output = await response.json();
-    expect(output.value).toEqual(value);
-  });
-
-  it("bad ifModifiedSince", async () => {
-    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
-      ifModifiedSince: "alskdjflk",
-    });
-    expect(response.status).toBe(400);
-  });
-
-  it("query with skip", async () => {
-    const channels = [randomString(), randomString()];
-    for (let i = 9; i >= 0; i--) {
-      await request(solidFetch, toUrl(randomString()), "PUT", {
-        body: { index: i },
-        channels,
-      });
-    }
-    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
-      channels,
-      range: "=4-",
-    });
-    expect(response.status).toBe(200);
-    const output = await response.text();
-    const parts = output.split("\n");
-    expect(parts.length).toBe(6);
-    let index = 4;
-    for (const part of parts) {
-      expect(JSON.parse(part).value.index).toBe(index);
-      index++;
+    const objects = parts.map((p) => JSON.parse(p));
+    for (const obj of objects) {
+      expect(obj.allowed).toBeUndefined();
+      expect(obj.tombstone).toBe(false);
+      if (obj.name === name1) {
+        expect(obj.value).toEqual(value1);
+        expect(obj.channels.sort()).toEqual(channels1.sort());
+        expect(new Date(obj.lastModified).toUTCString()).toBe(
+          putted1.headers.get("last-modified"),
+        );
+      } else if (obj.name === name2) {
+        expect(obj.value).toEqual(value2);
+        expect(obj.channels.sort()).toEqual(channels2.sort());
+        expect(new Date(obj.lastModified).toUTCString()).toBe(
+          putted2.headers.get("last-modified"),
+        );
+      } else {
+        throw new Error("Unexpected object");
+      }
     }
   });
 
-  it("query with limit", async () => {
-    const channels = [randomString(), randomString()];
-    for (let i = 9; i >= 0; i--) {
-      await request(solidFetch, toUrl(randomString()), "PUT", {
-        body: { index: i },
-        channels,
-      });
-    }
-    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
-      channels,
-      range: "=-4",
-    });
-    expect(response.status).toBe(200);
-    const output = await response.text();
-    const parts = output.split("\n");
-    expect(parts.length).toBe(5);
-    let index = 0;
-    for (const part of parts) {
-      expect(JSON.parse(part).value.index).toBe(index);
-      index++;
-    }
-  });
-
-  it("query with skip and limit", async () => {
-    const channels = [randomString(), randomString()];
-    for (let i = 9; i >= 0; i--) {
-      await request(solidFetch, toUrl(randomString()), "PUT", {
-        body: { index: i },
-        channels,
-      });
-    }
-    const response = await request(solidFetch, baseUrl + "/discover", "GET", {
-      channels,
-      range: "=2-7",
-    });
-
-    expect(response.status).toBe(200);
-    const output = await response.text();
-    const parts = output.split("\n");
-    expect(parts.length).toBe(6);
-    let index = 2;
-    for (const part of parts) {
-      expect(JSON.parse(part).value.index).toBe(index);
-      index++;
-    }
-  });
-
-  it("query with bad schema", async () => {
+  it("discover with bad schema", async () => {
     const response = await solidFetch(baseUrl + "/discover?schema=alskdjflk");
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
   });
 
-  it("query with schema", async () => {
+  it("discover with schema", async () => {
     const channels = [randomString(), randomString()];
     for (let i = 9; i >= 0; i--) {
       await request(solidFetch, toUrl(randomString()), "PUT", {
@@ -525,101 +385,12 @@ describe("StoreController", () => {
     const parts = output.split("\n");
     expect(parts.length).toBe(6);
     let index = 3;
-    for (const part of parts) {
+    const partsSortedByIndex = parts.sort(
+      (a, b) => JSON.parse(a).value.index - JSON.parse(b).value.index,
+    );
+    for (const part of partsSortedByIndex) {
       expect(JSON.parse(part).value.index).toBe(index);
       index++;
     }
-  });
-
-  it("list channels", async () => {
-    const channels = [randomString(), randomString()];
-    const url = toUrl(randomString());
-    await request(solidFetch, url, "PUT", {
-      body: {},
-      channels,
-    });
-
-    const response = await request(
-      solidFetch,
-      baseUrl + "/list-channels",
-      "GET",
-    );
-    expect(response.ok).toBe(true);
-    const results = (await response.text())
-      .split("\n")
-      .map((r) => JSON.parse(r));
-    const relevant = results.filter((r) => channels.includes(r.channel));
-    expect(relevant.length).toBeLessThan(results.length);
-    expect(relevant.length).toBe(channels.length);
-    expect(relevant.map((r) => r.count)).toEqual(channels.map(() => 1));
-    expect(relevant.map((r) => r.channel).sort()).toEqual(channels.sort());
-    expect(relevant[0].lastModified).toEqual(relevant[1].lastModified);
-
-    const now = new Date();
-
-    await request(solidFetch, toUrl(randomString()), "PUT", {
-      body: {},
-      channels: [channels[0]],
-    });
-
-    const response2 = await request(
-      solidFetch,
-      baseUrl + "/list-channels",
-      "GET",
-      {
-        ifModifiedSince: now.toISOString(),
-      },
-    );
-    expect(response2.ok).toBe(true);
-    const results2 = await response2.json();
-    expect(results2.channel).toEqual(channels[0]);
-    expect(results2.count).toEqual(2);
-    expect(new Date(results2.lastModified).getTime()).toBeGreaterThan(
-      new Date(relevant[0].lastModified).getTime(),
-    );
-  });
-
-  it("list orphans", async () => {
-    const name = randomString();
-    await request(solidFetch, toUrl(name), "PUT", { body: {} });
-    const response = await request(
-      solidFetch,
-      baseUrl + "/list-orphans",
-      "GET",
-    );
-    expect(response.ok).toBe(true);
-    const results = (await response.text())
-      .split("\n")
-      .map((r) => JSON.parse(r));
-    const relevant = results.filter((r) => r.name === name);
-    expect(relevant.length).toBe(1);
-    expect(relevant.length).toBeLessThan(results.length);
-    expect(relevant[0].lastModified).toBeDefined();
-    expect(relevant[0].tombstone).toBe(false);
-
-    // Add channels to the orphan
-    const channels = [randomString(), randomString()];
-    await request(solidFetch, toUrl(name), "PUT", {
-      body: {},
-      channels,
-    });
-    const response2 = await request(
-      solidFetch,
-      baseUrl + "/list-orphans",
-      "GET",
-      {
-        ifModifiedSince: new Date(
-          new Date(relevant[0].lastModified).getTime() + 1,
-        ).toISOString(),
-      },
-    );
-
-    expect(response2.ok).toBe(true);
-    const results2 = await response2.json();
-    expect(results2.name).toBe(name);
-    expect(new Date(results2.lastModified).getTime()).toBeGreaterThan(
-      new Date(relevant[0].lastModified).getTime(),
-    );
-    expect(results2.tombstone).toBe(true);
   });
 });

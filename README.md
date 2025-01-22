@@ -1,16 +1,27 @@
 # Graffiti Pod
 
-This is a generic HTTP storage service for JSON objects with the added capability
-that data can be published to channels and users can "discover"
-content posted to channels of their choosing. While very simple, many types of
-social applications can be built on top of this model.
+This is a server for a federated implementation of the [Graffiti API](https://api.graffiti.garden/classes/Graffiti.html).
+The corresponding client is adjacent in this repository, [Graffiti Client]().
 
-Authentication is via [Solid OIDC](https://solid.github.io/solid-oidc/) and
-so users must have a seperate Solid webID to publish data or view private data.
+The server uses the [PouchDB Implementation]() of the Graffiti API under the hood,
+but wraps it with [Solid OIDC](https://solid.github.io/solid-oidc/) for portable authentication.
 
-## Local Usage
+## Development
 
-To launch the container, run:
+### Setup
+
+Since this server uses [PouchDB](https://pouchdb.com/), it can be run both with or without a separate database.
+For production, we will stand up a [CouchDB](https://couchdb.apache.org/) instance via docker,
+but for development and testing, we can use either an in-memory database or a dockerized CouchDB instance.
+
+To use the in-memory database, simply install the package locally by running the following in the root of the repository:
+
+```bash
+npm install
+```
+
+To use the dockerized CouchDB instance, first install [Docker](https://docs.docker.com/engine/install/#server) and [Docker Compose](https://docs.docker.com/compose/install/).
+Then, run the following command in the root of the repository:
 
 ```bash
 sudo docker compose up --build
@@ -22,7 +33,15 @@ Then in another terminal launch a shell with:
 sudo docker compose exec graffiti-pod sh
 ```
 
-To start the app run:
+Use this shell to run the commands listed below. When you are done, you can stop the container (in the original shell) with:
+
+```bash
+docker compose down --remove-orphans
+```
+
+### Running
+
+Once setup, you can run the server.
 
 ```bash
 npm start
@@ -30,11 +49,7 @@ npm start
 
 The application will be up at [localhost:3000](http://localhost:3000).
 
-To stop the container run:
-
-```bash
-docker compose down --remove-orphans
-```
+See `package.json` for more scripts.
 
 ### Testing
 
@@ -49,16 +64,17 @@ SOLID_OIDC_ISSUER=https://login.inrupt.com
 
 Also, make sure the web server is not be running as it conflicts with tests, i.e. kill `npm start`.
 
-To run all tests, run the following within the container shell created above:
+Then run the following:
 
 ```bash
 npm test
 ```
 
-To run a particular test, replace `store.service` with the name of the test file:
+See `package.json` for more test scripts.
+For example, you can watch for changes and test a particular file like the `store.controller` module:
 
 ```bash
-npm run test:watch store.service
+npm run test:watch store.controller
 ```
 
 ## Deployment
@@ -110,8 +126,3 @@ or restart with
 ```bash
 sudo systemctl restart graffiti-pod.service
 ```
-
-## TODO:
-
-- Add an endpoint that users can use to check if the server knows a particular channel,
-  without revealing that channel, via the ZK proof.

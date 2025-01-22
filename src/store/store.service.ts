@@ -59,7 +59,7 @@ export class StoreService {
     response: FastifyReply,
     put: boolean = false,
   ): Object | void {
-    // If the previous object is essentially, blank issue "201: Created"
+    // If putting and the previous object is blank issue "201: Created"
     if (
       put &&
       Object.keys(object.value).length === 0 &&

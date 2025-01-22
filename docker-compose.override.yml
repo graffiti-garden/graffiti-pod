@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   graffiti-pod:
     ports:
@@ -11,3 +9,7 @@ services:
         "-c",
         "echo 'Container up! In another tab run\nsudo docker compose exec graffiti-pod sh\nto enter the container.' && tail -f /dev/null",
       ]
+
+  couchdb:
+    ports:
+      - 5984:5984

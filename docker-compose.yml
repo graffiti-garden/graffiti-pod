@@ -1,7 +1,6 @@
-version: "3.8"
-
 volumes:
-  graffitidata:
+  graffiti-data:
+  graffiti-couchdb-config:
 
 services:
   graffiti-pod:
@@ -9,16 +8,19 @@ services:
     build: .
     volumes:
       - ./src:/app/src
+    environment:
+      - USE_COUCHDB=true
     depends_on:
-      - mongo
+      - couchdb
 
-  mongo:
-    image: mongo:7.0.8-jammy
-    container_name: graffiti-mongo
-    restart: always
-    command: "--bind_ip_all --replSet rs0 --quiet --logpath /dev/null --setParameter logLevel=0"
+  couchdb:
+    image: couchdb:latest
+    container_name: graffiti-couchdb
     volumes:
-      - ./config/mongo:/docker-entrypoint-initdb.d/
-      - graffitidata:/data/db
-    extra_hosts:
-      - "mongo:127.0.0.1"
+      - graffiti-data:/opt/couchdb/data
+      - graffiti-couchdb-config:/opt/couchdb/etc
+      - ./config/couchdb/10-single-node.ini:/opt/couchdb/etc/local.d/10-single-node.ini:ro
+    environment:
+      - COUCHDB_USER=${COUCHDB_USER}
+      - COUCHDB_PASSWORD=${COUCHDB_PASSWORD}
+    restart: unless-stopped

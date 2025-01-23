@@ -29,9 +29,12 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
+    "@graffiti-garden/api": "^0.1.8",
+    "@graffiti-garden/implementation-pouchdb": "^0.1.10",
     "@inrupt/solid-client": "^2.0.1",
     "@repeaterjs/repeater": "^3.0.6",
     "ajv": "^8.17.1",
+    "ajv-draft-04": "^1.0.0",
     "fast-json-patch": "^3.1.1"
   }
 }

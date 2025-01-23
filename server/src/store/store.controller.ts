@@ -183,13 +183,14 @@ export class StoreController {
     @DecodeParam("actor") actor: string,
     @DecodeParam("name") name: string,
     @Actor() selfActor: string | null,
+    @Schema() schema: {},
     @Response({ passthrough: true }) response: FastifyReply,
   ) {
     let gotten: GraffitiObjectBase;
     try {
       gotten = await this.graffiti.get(
         { actor, name, source: this.source },
-        {},
+        schema,
         selfActor ? { actor: selfActor } : undefined,
       );
     } catch (e) {

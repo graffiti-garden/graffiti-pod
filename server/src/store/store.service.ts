@@ -38,17 +38,23 @@ export class StoreService {
     if (error instanceof GraffitiErrorNotFound) {
       return new NotFoundException(error.message);
     } else if (error instanceof GraffitiErrorPatchError) {
-      return new UnprocessableEntityException(error.message);
+      return new UnprocessableEntityException("PatchError: " + error.message);
     } else if (error instanceof GraffitiErrorPatchTestFailed) {
-      return new PreconditionFailedException(error.message);
+      return new PreconditionFailedException(
+        "PatchTestFailed: " + error.message,
+      );
     } else if (error instanceof GraffitiErrorForbidden) {
       return new ForbiddenException(error.message);
     } else if (error instanceof GraffitiErrorUnauthorized) {
       return new UnauthorizedException(error.message);
     } else if (error instanceof GraffitiErrorInvalidSchema) {
-      return new UnprocessableEntityException(error.message);
+      return new UnprocessableEntityException(
+        "InvalidSchema: " + error.message,
+      );
     } else if (error instanceof GraffitiErrorSchemaMismatch) {
-      return new PreconditionFailedException(error.message);
+      return new PreconditionFailedException(
+        "SchemaMismatch: " + error.message,
+      );
     } else {
       return new InternalServerErrorException(error);
     }

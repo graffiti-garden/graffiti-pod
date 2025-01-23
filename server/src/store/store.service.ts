@@ -83,9 +83,12 @@ export class StoreService {
     if (object.channels.length) {
       response.header("channels", encodeURIArray(object.channels));
     }
+    const lastModifiedDate = new Date(object.lastModified);
+    response.header("last-modified", lastModifiedDate.toUTCString());
+    // Send milliseconds too to avoid rounding errors
     response.header(
-      "last-modified",
-      new Date(object.lastModified).toUTCString(),
+      "last-modified-ms",
+      lastModifiedDate.getUTCMilliseconds().toString(),
     );
 
     return object.value;

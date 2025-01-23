@@ -4,9 +4,12 @@ import { StoreController } from "./store.controller";
 import { StoreService } from "./store.service";
 import type { GraffitiPouchDBOptions } from "@graffiti-garden/implementation-pouchdb";
 
-const options: GraffitiPouchDBOptions = {
-  sourceName: "https://" + process.env.DOMAIN,
-};
+const options: GraffitiPouchDBOptions = {};
+const domain = process.env.DOMAIN;
+if (domain) {
+  options.sourceName = `https://${domain}`;
+  console.log("Setting pod source to be ", options.sourceName);
+}
 if (process.env.USE_COUCHDB === "true") {
   console.log("Using external couchDB database...");
   const user = process.env.COUCHDB_USER;

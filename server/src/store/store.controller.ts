@@ -44,7 +44,7 @@ export class StoreController {
     @Inject("GRAFFITI_POUCHDB_OPTIONS")
     private readonly options?: GraffitiPouchDBOptions,
   ) {
-    this.source = options?.sourceName ?? "http://localhost";
+    this.source = options?.sourceName ?? "http://localhost:3000";
     this.graffiti = new GraffitiPouchDBBase(this.options);
   }
 

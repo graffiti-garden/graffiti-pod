@@ -310,11 +310,16 @@ describe("StoreController", () => {
       channels: channels2,
     });
 
-    expect(
-      new Date(putted2.headers.get("last-modified")!).getTime(),
-    ).toBeGreaterThanOrEqual(
-      new Date(putted1.headers.get("last-modified")!).getTime(),
+    const putted1Date = new Date(putted1.headers.get("last-modified")!);
+    putted1Date.setUTCMilliseconds(
+      Number(putted1.headers.get("last-modified-ms")!),
     );
+    const putted2Date = new Date(putted2.headers.get("last-modified")!);
+    putted2Date.setUTCMilliseconds(
+      Number(putted2.headers.get("last-modified-ms")!),
+    );
+
+    expect(putted2Date.getTime()).toBeGreaterThan(putted1Date.getTime());
 
     const channels = [channels1[0]];
     const response = await request(solidFetch, baseUrl + "/discover", "GET", {
@@ -331,15 +336,11 @@ describe("StoreController", () => {
       if (obj.name === name1) {
         expect(obj.value).toEqual(value1);
         expect(obj.channels.sort()).toEqual(channels1.sort());
-        expect(new Date(obj.lastModified).toUTCString()).toBe(
-          putted1.headers.get("last-modified"),
-        );
+        expect(obj.lastModified).toBe(putted1Date.getTime());
       } else if (obj.name === name2) {
         expect(obj.value).toEqual(value2);
         expect(obj.channels.sort()).toEqual(channels2.sort());
-        expect(new Date(obj.lastModified).toUTCString()).toBe(
-          putted2.headers.get("last-modified"),
-        );
+        expect(obj.lastModified).toBe(putted2Date.getTime());
       } else {
         throw new Error("Unexpected object");
       }

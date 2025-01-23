@@ -58,6 +58,9 @@ describe("StoreService", () => {
     expect(response.getHeader("Last-Modified")).toBe(
       new Date(go.lastModified).toUTCString(),
     );
+    expect(response.getHeader("Last-Modified-Ms")).toBe(
+      new Date(go.lastModified).getUTCMilliseconds().toString(),
+    );
   });
 
   it("return with empty channels and allowed", async () => {
@@ -72,6 +75,9 @@ describe("StoreService", () => {
     expect(response.getHeader("Access-Control-List")).toBeUndefined();
     expect(response.getHeader("Last-Modified")).toBe(
       new Date(go.lastModified).toUTCString(),
+    );
+    expect(response.getHeader("Last-Modified-Ms")).toBe(
+      new Date(go.lastModified).getUTCMilliseconds().toString(),
     );
   });
 

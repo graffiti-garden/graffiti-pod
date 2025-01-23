@@ -55,5 +55,9 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-.env
 graffitiDb*
+docs
+*.sw*
+.DS_Store
+.env*
+.secrets*

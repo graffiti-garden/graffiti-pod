@@ -1,7 +1,7 @@
-import * as secrets from "../.secrets.json";
 import { Session } from "@inrupt/solid-client-authn-node";
+import type { GraffitiSessionOIDC } from "./types";
 
-export async function solidLogin() {
+export async function solidLogin(secrets: any): Promise<GraffitiSessionOIDC> {
   const session = new Session({ keepAlive: true });
   await session.login(secrets);
   if (!session.info.isLoggedIn || !session.info.webId) {
@@ -9,7 +9,7 @@ export async function solidLogin() {
   }
   return {
     fetch: session.fetch,
-    webId: session.info.webId,
+    actor: session.info.webId,
   };
 }
 

@@ -2,11 +2,11 @@ import type {
   Graffiti,
   JSONSchema4,
   GraffitiLocation,
-  GraffitiSession,
   GraffitiPutObject,
   GraffitiPatch,
 } from "@graffiti-garden/api";
 import { GraffitiErrorSchemaMismatch } from "@graffiti-garden/api";
+import type { GraffitiSessionOIDC } from "../types";
 import {
   unpackLocationOrUri,
   attemptAjvCompile,
@@ -15,11 +15,7 @@ import {
 } from "@graffiti-garden/implementation-pouchdb";
 import { parseGraffitiObjectResponse } from "./decode-response";
 import { encodeJSONBody, encodeQueryParams } from "./encode-request";
-import type Ajv from "ajv";
-
-export interface GraffitiSessionOIDC extends GraffitiSession {
-  fetch: typeof fetch;
-}
+import type Ajv from "ajv-draft-04";
 
 export class GraffitiFederatedCrud
   implements Pick<Graffiti, "get" | "put" | "patch" | "delete">

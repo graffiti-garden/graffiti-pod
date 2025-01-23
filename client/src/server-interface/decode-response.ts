@@ -1,4 +1,4 @@
-import { GraffitiErrorOther } from "@graffiti-garden/api";
+import type { GraffitiStream } from "@graffiti-garden/api";
 import {
   GraffitiErrorForbidden,
   GraffitiErrorInvalidSchema,
@@ -43,7 +43,7 @@ export async function catchResponseErrors(response: Response) {
     }
   }
 
-  throw new GraffitiErrorOther(text);
+  throw new Error(text);
 }
 
 export function parseEncodedStringArrayHeader<T>(
@@ -69,12 +69,27 @@ export async function parseGraffitiObjectResponse(
   try {
     value = JSON.parse(text);
   } catch (e) {
-    throw new GraffitiErrorOther("Received invalid JSON response from server");
+    throw new Error("Received invalid JSON response from server");
   }
   const lastModifiedGMT = response.headers.get("last-modified");
   if (!lastModifiedGMT) {
-    throw new GraffitiErrorOther(
+    throw new Error(
       "Received response from server without Last-Modified header",
+    );
+  }
+  const lastModifiedMs = response.headers.get("last-modified-ms");
+  if (!lastModifiedMs) {
+    throw new Error(
+      "Received response from server without Last-Modified-Ms header",
+    );
+  }
+
+  const lastModifiedDate = new Date(lastModifiedGMT);
+  lastModifiedDate.setUTCMilliseconds(parseInt(lastModifiedMs));
+  const lastModified = lastModifiedDate.getTime();
+  if (Number.isNaN(lastModified)) {
+    throw new Error(
+      "Received response from server with invalid Last-Modified header",
     );
   }
 
@@ -92,6 +107,64 @@ export async function parseGraffitiObjectResponse(
       response.headers.get("allowed"),
       undefined,
     ),
-    lastModified: new Date(lastModifiedGMT).getTime(),
+    lastModified,
   };
+}
+
+async function parseJSONLine<T>(
+  line: string,
+  lineParser: (json: {}) => T | Promise<T>,
+  source: string,
+): Promise<Awaited<ReturnType<GraffitiStream<T, void>["next"]>>["value"]> {
+  try {
+    const json = JSON.parse(line);
+    return {
+      value: await lineParser(json),
+    };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e : new Error(),
+      source,
+    };
+  }
+}
+
+const decoder = new TextDecoder();
+export async function* parseJSONLinesResponse<T>(
+  response: Response,
+  source: string,
+  lineParser: (json: {}) => T | Promise<T>,
+): GraffitiStream<T, void> {
+  await catchResponseErrors(response);
+  if (response.status === 204) {
+    return;
+  }
+  if (response.status !== 200) {
+    throw new Error(`Unexpected status code from server: ${response.status}`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("Failed to get a reader from the server's response body");
+  }
+
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+
+    if (value) {
+      buffer += decoder.decode(value);
+      const parts = buffer.split("\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        yield (await parseJSONLine(part, lineParser, source))!;
+      }
+    }
+
+    if (done) break;
+  }
+
+  // Clear the buffer
+  if (buffer) {
+    yield (await parseJSONLine(buffer, lineParser, source))!;
+  }
 }

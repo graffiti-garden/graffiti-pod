@@ -1,9 +1,10 @@
-# Graffiti Pod
+# Graffiti Federated Implementation: Server
 
 This is a server for a federated implementation of the [Graffiti API](https://api.graffiti.garden/classes/Graffiti.html).
-The corresponding client is adjacent in this repository, [Graffiti Client]().
+The corresponding client is [adjacent in this repository](../client).
 
-The server uses the [PouchDB Implementation]() of the Graffiti API under the hood,
+This server uses the [PouchDB Implementation](https://github.com/graffiti-garden/implementation-pouchdb)
+of the Graffiti API under the hood,
 but wraps it with [Solid OIDC](https://solid.github.io/solid-oidc/) for portable authentication.
 
 ## Development

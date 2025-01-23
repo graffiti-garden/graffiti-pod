@@ -1,3 +1,5 @@
+# Graffiti Federated Implementation: Client
+
 ## TODO:
 
 - documentation!!

@@ -1,7 +1,10 @@
 import { Graffiti, GraffitiErrorSchemaMismatch } from "@graffiti-garden/api";
 import type { GraffitiObjectBase, JSONSchema4 } from "@graffiti-garden/api";
 import Ajv, { type ValidateFunction, type JSONSchemaType } from "ajv-draft-04";
-import { attemptAjvCompile } from "@graffiti-garden/implementation-pouchdb";
+import {
+  attemptAjvCompile,
+  isActorAllowedGraffitiObject,
+} from "@graffiti-garden/implementation-pouchdb";
 import { parseJSONLinesResponse } from "./decode-response";
 import { encodeQueryParams } from "./encode-request";
 import type { GraffitiSessionOIDC } from "../types";
@@ -29,7 +32,7 @@ export const GRAFFITI_OBJECT_SCHEMA: JSONSchemaType<GraffitiObjectBase> = {
   ],
 };
 
-export class GraffitiFederatedDiscover implements Pick<Graffiti, "discover"> {
+export class GraffitiSinglePodDiscover implements Pick<Graffiti, "discover"> {
   ajv: Ajv;
   source: string;
   validateGraffitiObject: ValidateFunction<GraffitiObjectBase>;
@@ -62,15 +65,29 @@ export class GraffitiFederatedDiscover implements Pick<Graffiti, "discover"> {
           "Source returned an object claiming to be from another source",
         );
       }
+      if (!isActorAllowedGraffitiObject(object, session)) {
+        throw new Error(
+          "Source returned an object that the session is not allowed to see",
+        );
+      }
+      if (!channels.some((channel) => object.channels.includes(channel))) {
+        throw new Error(
+          "Source returned an object not in the requested channels",
+        );
+      }
       if (!validate(object)) {
         throw new GraffitiErrorSchemaMismatch();
       }
       return object;
     });
 
-    for await (const object of iterator) {
-      yield object;
+    try {
+      for await (const object of iterator) {
+        yield object;
+      }
+    } finally {
+      // TODO: fix this
+      return { tombstoneRetention: 999999999 };
     }
-    return { tombstoneRetention: 0 };
   }
 }

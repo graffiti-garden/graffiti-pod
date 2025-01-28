@@ -1,5 +1,5 @@
 {
-  "name": "@graffiti-garden/client-core",
+  "name": "@graffiti-garden/implementation-federated-pods",
   "version": "0.4.3",
   "description": "client for the graffiti pod",
   "type": "module",
@@ -31,6 +31,7 @@
   "dependencies": {
     "@graffiti-garden/api": "^0.1.8",
     "@graffiti-garden/implementation-pouchdb": "^0.1.10",
+    "@graffiti-garden/solid-oidc-interface": "^0.0.2",
     "@inrupt/solid-client": "^2.0.1",
     "@repeaterjs/repeater": "^3.0.6",
     "ajv": "^8.17.1",

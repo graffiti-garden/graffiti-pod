@@ -1,6 +1,6 @@
-# Graffiti Federated Implementation: Server
+# Graffiti Federated Implementation: Pod Server
 
-This is a server for a federated implementation of the [Graffiti API](https://api.graffiti.garden/classes/Graffiti.html).
+This is a "pod" server for a federated implementation of the [Graffiti API](https://api.graffiti.garden/classes/Graffiti.html).
 The corresponding client is [adjacent in this repository](../client).
 
 This server uses the [PouchDB Implementation](https://github.com/graffiti-garden/implementation-pouchdb)

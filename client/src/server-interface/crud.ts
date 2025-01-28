@@ -17,7 +17,7 @@ import { parseGraffitiObjectResponse } from "./decode-response";
 import { encodeJSONBody, encodeQueryParams } from "./encode-request";
 import type Ajv from "ajv-draft-04";
 
-export class GraffitiFederatedCrud
+export class GraffitiSinglePodCrud
   implements Pick<Graffiti, "get" | "put" | "patch" | "delete">
 {
   ajv: Ajv;

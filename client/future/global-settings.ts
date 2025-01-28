@@ -14,6 +14,36 @@ import {
 
 const GRAFFITI_PREDICATE = "https://graffiti.garden";
 
+export const USER_SETTINGS_SCHEMA = {
+  type: "object",
+  required: ["value"],
+  properties: {
+    value: {
+      type: "object",
+      required: ["settings"],
+      properties: {
+        settings: {
+          type: "object",
+          required: ["pods"],
+          properties: {
+            pods: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["pod"],
+                properties: {
+                  pod: { type: "string" },
+                  delegateIfMatching: { type: "object", nullable: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const satisfies JSONSchema4;
+
 export default class SettingsUrlManager {
   private readonly settingsUrlCache = new Map<string, string | null>();
   private readonly webIdLocks = new Map<string, Promise<any>>();

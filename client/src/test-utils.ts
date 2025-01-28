@@ -12,35 +12,3 @@ export async function solidLogin(secrets: any): Promise<GraffitiSessionOIDC> {
     actor: session.info.webId,
   };
 }
-
-export function randomString(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-export function randomLocation(webId: string, pod: string) {
-  return {
-    name: randomString(),
-    webId,
-    pod,
-  };
-}
-
-export function randomValue() {
-  return {
-    [randomString()]: randomString(),
-  };
-}
-
-export function randomGraffitiObject() {
-  return {
-    ...randomLocation(randomString(), randomString()),
-    value: randomValue(),
-    channels: [randomString(), randomString()],
-    tombstone: false,
-    lastModified: new Date(),
-  };
-}

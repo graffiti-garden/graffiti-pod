@@ -2,9 +2,9 @@ import "dotenv/config";
 import { Module } from "@nestjs/common";
 import { StoreController } from "./store.controller";
 import { StoreService } from "./store.service";
-import type { GraffitiPouchDBOptions } from "@graffiti-garden/implementation-pouchdb";
+import type { GraffitiLocalOptions } from "@graffiti-garden/implementation-local/database";
 
-const options: GraffitiPouchDBOptions = {};
+const options: GraffitiLocalOptions = {};
 const domain = process.env.DOMAIN;
 if (domain) {
   options.sourceName = `https://${domain}`;

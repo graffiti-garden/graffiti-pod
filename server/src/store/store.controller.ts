@@ -24,9 +24,9 @@ import type {
   GraffitiPatch,
 } from "@graffiti-garden/api";
 import {
-  GraffitiPouchDBBase,
-  type GraffitiPouchDBOptions,
-} from "@graffiti-garden/implementation-pouchdb";
+  GraffitiLocalDatabase,
+  type GraffitiLocalOptions,
+} from "@graffiti-garden/implementation-local/database";
 
 const CONTENT_TYPE = [
   "Content-Type",
@@ -35,17 +35,17 @@ const CONTENT_TYPE = [
 
 @Controller()
 export class StoreController {
-  readonly graffiti: GraffitiPouchDBBase;
+  readonly graffiti: GraffitiLocalDatabase;
   readonly source: string;
 
   constructor(
     private readonly storeService: StoreService,
     @Optional()
     @Inject("GRAFFITI_POUCHDB_OPTIONS")
-    private readonly options?: GraffitiPouchDBOptions,
+    private readonly options?: GraffitiLocalOptions,
   ) {
     this.source = options?.sourceName ?? "http://localhost:3000";
-    this.graffiti = new GraffitiPouchDBBase(this.options);
+    this.graffiti = new GraffitiLocalDatabase(this.options);
   }
 
   @Get("discover")

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { Session } from "@inrupt/solid-client-authn-node";
 import type { FastifyReply } from "fastify";
 import type { GraffitiObjectBase } from "@graffiti-garden/api";
-import { GraffitiPouchDBUtilities } from "@graffiti-garden/implementation-pouchdb";
+import { randomBase64 } from "@graffiti-garden/implementation-local/utilities";
 
 const clientId = process.env.SOLID_CLIENT_ID;
 const clientSecret = process.env.SOLID_CLIENT_SECRET;
@@ -25,7 +25,7 @@ export async function solidLogin() {
   };
 }
 
-export const randomString = GraffitiPouchDBUtilities.randomBase64;
+export const randomString = randomBase64;
 
 export function randomGraffitiObject(): GraffitiObjectBase {
   return {

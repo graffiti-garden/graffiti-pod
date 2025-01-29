@@ -1,4 +1,4 @@
-import type { JSONSchema4 } from "json-schema";
+import type { JSONSchema4 } from "@graffiti-garden/api";
 
 function addHeader(requestInit: RequestInit, key: string, value: string): void {
   if (!requestInit.headers || !(requestInit.headers instanceof Headers)) {

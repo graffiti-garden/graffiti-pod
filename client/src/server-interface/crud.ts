@@ -12,7 +12,7 @@ import {
   attemptAjvCompile,
   randomBase64,
   locationToUri,
-} from "@graffiti-garden/implementation-pouchdb";
+} from "@graffiti-garden/implementation-local/utilities";
 import { parseGraffitiObjectResponse } from "./decode-response";
 import { encodeJSONBody, encodeQueryParams } from "./encode-request";
 import type Ajv from "ajv-draft-04";

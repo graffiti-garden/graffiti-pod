@@ -1,7 +1,7 @@
 import type { GraffitiSession, GraffitiStream } from "@graffiti-garden/api";
 import type { GraffitiLocation } from "@graffiti-garden/api";
 import type { Graffiti } from "@graffiti-garden/api";
-import { unpackLocationOrUri } from "@graffiti-garden/implementation-pouchdb";
+import { unpackLocationOrUri } from "@graffiti-garden/implementation-local/utilities";
 
 type GraffitiBase = Pick<
   Graffiti,

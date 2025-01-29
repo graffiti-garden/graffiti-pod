@@ -2,7 +2,7 @@ import {
   graffitiDiscoverTests,
   graffitiCRUDTests,
 } from "@graffiti-garden/api/tests";
-import { GraffitiSinglePodBase } from "./single-pod-base";
+import { GraffitiSinglePod } from "./single-pod";
 import * as secrets1 from "../../../.secrets1.json";
 import * as secrets2 from "../../../.secrets2.json";
 import Ajv from "ajv-draft-04";
@@ -15,12 +15,12 @@ const ajv = new Ajv({ strict: false });
 const source = "http://localhost:3000";
 
 graffitiDiscoverTests(
-  () => new GraffitiSinglePodBase({ source }, ajv),
+  () => new GraffitiSinglePod({ source }, ajv),
   () => session1,
   () => session2,
 );
 graffitiCRUDTests(
-  () => new GraffitiSinglePodBase({ source }, ajv),
+  () => new GraffitiSinglePod({ source }, ajv),
   () => session1,
   () => session2,
 );

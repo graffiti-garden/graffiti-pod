@@ -1,41 +1,51 @@
 {
-  "name": "@graffiti-garden/implementation-federated-pods",
-  "version": "0.4.3",
-  "description": "client for the graffiti pod",
-  "type": "module",
-  "main": "src/index.ts",
-  "browser": "dist/index.js",
+  "name": "@graffiti-garden/implementation-federated",
+  "version": "0.0.1",
+  "description": "Federated implementation of the Graffiti API",
+  "types": "./dist/src/index.d.ts",
+  "module": "./dist/index.js",
+  "browser": "./dist/index.browser.js",
+  "main": "./dist/index.cjs.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/src/index.d.ts",
+        "node": "./dist/index.cjs.js",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/src/index.d.ts",
+        "default": "./dist/index.cjs.js"
+      }
+    }
+  },
   "scripts": {
-    "test": "vitest",
-    "build": "rollup -c rollup.config.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --coverage",
+    "build": "rollup -c rollup.config.ts --configPlugin rollup-plugin-typescript2",
     "prepublishOnly": "npm install && npm test && npm run build"
   },
   "author": "Theia Henderson",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "@inrupt/solid-client-authn-node": "^2.2.1",
-    "@rollup/plugin-commonjs": "^26.0.1",
+    "@inrupt/solid-client-authn-node": "^2.3.0",
+    "@rollup/plugin-commonjs": "^26.0.3",
     "@rollup/plugin-json": "^6.1.0",
-    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-node-resolve": "^15.3.1",
     "@rollup/plugin-terser": "^0.4.4",
-    "@rollup/plugin-typescript": "^11.1.6",
-    "@types/json-schema": "^7.0.15",
-    "rollup": "^4.21.0",
-    "rollup-plugin-cjs-es": "^3.0.0",
+    "rollup": "^4.32.0",
+    "rollup-plugin-node-polyfills": "^0.2.1",
     "rollup-plugin-typescript2": "^0.36.0",
-    "rollup-plugin-visualizer": "^5.12.0",
-    "tslib": "^2.6.3",
-    "typedoc": "^0.26.7",
+    "rollup-plugin-visualizer": "^5.14.0",
+    "tslib": "^2.8.1",
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@graffiti-garden/api": "^0.1.8",
-    "@graffiti-garden/implementation-pouchdb": "^0.1.10",
-    "@graffiti-garden/solid-oidc-interface": "^0.0.2",
-    "@inrupt/solid-client": "^2.0.1",
-    "@repeaterjs/repeater": "^3.0.6",
+    "@graffiti-garden/api": "^0.1.10",
+    "@graffiti-garden/implementation-local": "^0.2.2",
+    "@graffiti-garden/solid-oidc-session-manager": "^0.0.7",
     "ajv": "^8.17.1",
-    "ajv-draft-04": "^1.0.0",
-    "fast-json-patch": "^3.1.1"
+    "ajv-draft-04": "^1.0.0"
   }
 }

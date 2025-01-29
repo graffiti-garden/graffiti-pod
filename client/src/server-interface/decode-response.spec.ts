@@ -5,7 +5,7 @@ import {
   parseGraffitiObjectResponse,
   parseJSONLinesResponse,
 } from "./decode-response";
-import { randomBase64 } from "@graffiti-garden/implementation-pouchdb";
+import { randomBase64 } from "@graffiti-garden/implementation-local/utilities";
 import type { GraffitiLocation } from "@graffiti-garden/api";
 
 function randomLocation(): GraffitiLocation {

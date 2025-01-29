@@ -3,11 +3,11 @@ import type { Graffiti } from "@graffiti-garden/api";
 import { GraffitiSinglePodCrud } from "./crud";
 import { GraffitiSinglePodDiscover } from "./discover";
 
-export interface GraffitiSinglePodBaseOptions {
+export interface GraffitiSinglePodOptions {
   source: string;
 }
 
-export class GraffitiSinglePodBase
+export class GraffitiSinglePod
   implements
     Pick<
       Graffiti,
@@ -29,7 +29,7 @@ export class GraffitiSinglePodBase
   delete: Graffiti["delete"];
   discover: Graffiti["discover"];
 
-  constructor(options: GraffitiSinglePodBaseOptions, ajv: Ajv) {
+  constructor(options: GraffitiSinglePodOptions, ajv: Ajv) {
     this.crud = new GraffitiSinglePodCrud(options.source, ajv);
     this.discoverClass = new GraffitiSinglePodDiscover(options.source, ajv);
 

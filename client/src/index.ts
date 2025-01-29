@@ -1,23 +1,25 @@
 import { Graffiti } from "@graffiti-garden/api";
 import Ajv from "ajv-draft-04";
+import { GraffitiSynchronize } from "@graffiti-garden/implementation-local/synchronize";
 import {
-  GraffitiSynchronize,
-  GraffitiPouchDBBase,
-  type GraffitiPouchDBOptions,
+  GraffitiLocalDatabase,
+  type GraffitiLocalOptions,
+} from "@graffiti-garden/implementation-local/database";
+import {
   locationToUri,
   uriToLocation,
-} from "@graffiti-garden/implementation-pouchdb";
+} from "@graffiti-garden/implementation-local/utilities";
 import {
-  GraffitiSolidOIDCInterface,
-  type GraffitiSolidOIDCInterfaceOptions,
-} from "@graffiti-garden/solid-oidc-interface";
+  type GraffitiSolidOIDCSessionManagerOptions,
+  GraffitiSolidOIDCSessionManager,
+} from "@graffiti-garden/solid-oidc-session-manager";
 import {
-  GraffitiSinglePodBase,
-  type GraffitiSinglePodBaseOptions,
-} from "./server-interface/single-pod-base";
+  GraffitiSinglePod,
+  type GraffitiSinglePodOptions,
+} from "./server-interface/single-pod";
 import { GraffitiRemoteAndLocal } from "./remote-and-local";
 
-export class GraffitiFederatedPods extends Graffiti {
+export class GraffitiFederated extends Graffiti {
   locationToUri = locationToUri;
   uriToLocation = uriToLocation;
 
@@ -37,20 +39,22 @@ export class GraffitiFederatedPods extends Graffiti {
    * Create a new Graffiti client that can interact with a federated set of pods.
    */
   constructor(options?: {
-    local?: GraffitiPouchDBOptions;
-    remote?: GraffitiSinglePodBaseOptions;
-    session?: GraffitiSolidOIDCInterfaceOptions;
+    local?: GraffitiLocalOptions;
+    remote?: GraffitiSinglePodOptions;
+    session?: GraffitiSolidOIDCSessionManagerOptions;
   }) {
     super();
 
-    const sessionManager = new GraffitiSolidOIDCInterface(options?.session);
+    const sessionManager = new GraffitiSolidOIDCSessionManager(
+      options?.session,
+    );
     this.login = sessionManager.login.bind(sessionManager);
     this.logout = sessionManager.logout.bind(sessionManager);
     this.sessionEvents = sessionManager.sessionEvents;
 
     const ajv = new Ajv({ strict: false });
-    const graffitiLocal = new GraffitiPouchDBBase(options?.local, ajv);
-    const graffitiRemote = new GraffitiSinglePodBase(
+    const graffitiLocal = new GraffitiLocalDatabase(options?.local, ajv);
+    const graffitiRemote = new GraffitiSinglePod(
       options?.remote ?? {
         source: "https://pod.graffiti.garden",
       },

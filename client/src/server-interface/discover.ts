@@ -4,7 +4,7 @@ import Ajv, { type ValidateFunction, type JSONSchemaType } from "ajv-draft-04";
 import {
   attemptAjvCompile,
   isActorAllowedGraffitiObject,
-} from "@graffiti-garden/implementation-pouchdb";
+} from "@graffiti-garden/implementation-local/utilities";
 import { parseJSONLinesResponse } from "./decode-response";
 import { encodeQueryParams } from "./encode-request";
 import type { GraffitiSessionOIDC } from "../types";

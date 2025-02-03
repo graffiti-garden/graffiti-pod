@@ -1,13 +1,40 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { StoreService } from "./store.service";
-import {
-  randomString,
-  randomGraffitiObject,
-  responseMock,
-} from "../test/utils";
+import { randomBase64 as randomString } from "@graffiti-garden/implementation-local/utilities";
 import { HttpException } from "@nestjs/common";
 import { encodeURIArray } from "../params/params.utils";
 import { describe, it, expect, beforeEach } from "vitest";
+import type { GraffitiObjectBase } from "@graffiti-garden/api";
+import type { FastifyReply } from "fastify";
+
+function responseMock() {
+  const headers = new Map<string, string>();
+  return {
+    header(name: string, value: string) {
+      headers.set(name.toLowerCase(), value);
+    },
+    getHeader(name: string) {
+      return headers.get(name.toLowerCase());
+    },
+    statusCode: 400,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+  } as FastifyReply;
+}
+
+function randomGraffitiObject(): GraffitiObjectBase {
+  return {
+    actor: randomString(),
+    name: randomString(),
+    value: { [randomString()]: randomString() },
+    lastModified: new Date().getTime(),
+    source: randomString(),
+    tombstone: false,
+    channels: [],
+  };
+}
 
 describe("StoreService", () => {
   let service: StoreService;
@@ -50,7 +77,7 @@ describe("StoreService", () => {
     go.channels = [randomString(), randomString()];
     go.allowed = [randomString(), randomString()];
     const response = responseMock();
-    const returned = service.returnObject(go, response);
+    const returned = service.returnObject(go, response, "get");
     expect(response.statusCode).toBe(200);
     expect(returned).toStrictEqual(go.value);
     expect(response.getHeader("Channels")).toBe(encodeURIArray(go.channels));
@@ -68,7 +95,7 @@ describe("StoreService", () => {
     go.channels = [];
     go.allowed = undefined;
     const response = responseMock();
-    const returned = service.returnObject(go, response);
+    const returned = service.returnObject(go, response, "get");
     expect(response.statusCode).toBe(200);
     expect(returned).toStrictEqual(go.value);
     expect(response.getHeader("Channels")).toBeUndefined();
@@ -87,7 +114,15 @@ describe("StoreService", () => {
     go.channels = [];
     go.allowed = undefined;
     const response = responseMock();
-    service.returnObject(go, response, true);
+    service.returnObject(go, response, "put");
     expect(response.statusCode).toBe(201);
+  });
+
+  it("return deleted object", async () => {
+    const go = randomGraffitiObject();
+    go.tombstone = true;
+    const response = responseMock();
+    service.returnObject(go, response, "get");
+    expect(response.statusCode).toBe(410);
   });
 });

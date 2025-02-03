@@ -9,6 +9,7 @@ import {
   UnprocessableEntityException,
   Inject,
   Optional,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { Controller } from "@nestjs/common";
 import { DecodeParam } from "../params/decodeparam.decorator";
@@ -18,10 +19,11 @@ import { Allowed } from "../params/allowed.decorator";
 import type { FastifyReply } from "fastify";
 import { Schema } from "../params/schema.decorator";
 import { StoreService } from "./store.service";
-import type {
-  Graffiti,
-  GraffitiObjectBase,
-  GraffitiPatch,
+import {
+  GraffitiErrorUnauthorized,
+  type Graffiti,
+  type GraffitiObjectBase,
+  type GraffitiPatch,
 } from "@graffiti-garden/api";
 import {
   GraffitiLocalDatabase,
@@ -45,7 +47,11 @@ export class StoreController {
     private readonly options?: GraffitiLocalOptions,
   ) {
     this.source = options?.sourceName ?? "http://localhost:3000";
-    this.graffiti = new GraffitiLocalDatabase(this.options);
+    options = {
+      ...options,
+      sourceName: this.source,
+    };
+    this.graffiti = new GraffitiLocalDatabase(options);
   }
 
   @Get("discover")
@@ -64,6 +70,51 @@ export class StoreController {
         schema,
         selfActor ? { actor: selfActor } : undefined,
       );
+    } catch (error) {
+      throw this.storeService.catchGraffitiError(error);
+    }
+
+    return this.storeService.iteratorToStreamableFile(iterator, response);
+  }
+
+  @Get("channel-stats")
+  @Header("Cache-Control", "private, no-cache")
+  @Header("Vary", "Authorization")
+  async channelStats(
+    @Actor() actor: string | null,
+    @Response({ passthrough: true }) response: FastifyReply,
+  ) {
+    if (!actor) {
+      throw new UnauthorizedException(
+        "You must be logged in to look up your channel statistics",
+      );
+    }
+    let iterator: ReturnType<Graffiti["channelStats"]>;
+    try {
+      iterator = this.graffiti.channelStats({ actor });
+    } catch (error) {
+      throw this.storeService.catchGraffitiError(error);
+    }
+
+    return this.storeService.iteratorToStreamableFile(iterator, response);
+  }
+
+  @Get("recover-orphans")
+  @Header("Cache-Control", "private, no-cache")
+  @Header("Vary", "Authorization")
+  async recoverOrphans(
+    @Actor() actor: string | null,
+    @Response({ passthrough: true }) response: FastifyReply,
+    @Schema() schema: {},
+  ) {
+    if (!actor) {
+      throw new UnauthorizedException(
+        "You must be logged in to recover your orpaned objects",
+      );
+    }
+    let iterator: ReturnType<Graffiti["recoverOrphans"]>;
+    try {
+      iterator = this.graffiti.recoverOrphans(schema, { actor });
     } catch (error) {
       throw this.storeService.catchGraffitiError(error);
     }
@@ -104,7 +155,7 @@ export class StoreController {
       throw this.storeService.catchGraffitiError(error);
     }
 
-    return this.storeService.returnObject(putted, response, true);
+    return this.storeService.returnObject(putted, response, "put");
   }
 
   @Delete(":actor/:name")
@@ -125,7 +176,7 @@ export class StoreController {
     } catch (e) {
       throw this.storeService.catchGraffitiError(e);
     }
-    return this.storeService.returnObject(deleted, response);
+    return this.storeService.returnObject(deleted, response, "delete");
   }
 
   @Patch(":actor/:name")
@@ -172,7 +223,7 @@ export class StoreController {
     } catch (e) {
       throw this.storeService.catchGraffitiError(e);
     }
-    return this.storeService.returnObject(patched, response);
+    return this.storeService.returnObject(patched, response, "patch");
   }
 
   @Get(":actor/:name")
@@ -196,6 +247,6 @@ export class StoreController {
     } catch (e) {
       throw this.storeService.catchGraffitiError(e);
     }
-    return this.storeService.returnObject(gotten, response);
+    return this.storeService.returnObject(gotten, response, "get");
   }
 }

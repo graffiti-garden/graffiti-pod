@@ -4,7 +4,8 @@ import {
   FastifyAdapter,
 } from "@nestjs/platform-fastify";
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
-import { randomString, solidLogin } from "../test/utils";
+import { randomBase64 as randomString } from "@graffiti-garden/implementation-local/utilities";
+import { solidLogin } from "../test/utils";
 import { StoreModule } from "./store.module";
 import { encodeURIArray } from "../params/params.utils";
 import { GraffitiPatch } from "@graffiti-garden/api";
@@ -266,7 +267,15 @@ describe("StoreController", () => {
     expect(await responseDelete.json()).toEqual(body);
 
     const responseGet = await fetch(url);
-    expect(responseGet.status).toBe(404);
+    expect(responseGet.status).toBe(410);
+    const value = await responseGet.json();
+    expect(value).toEqual(body);
+    expect(responseGet.headers.get("last-modified")).toEqual(
+      responseDelete.headers.get("last-modified"),
+    );
+    expect(responseGet.headers.get("last-modified-ms")).toEqual(
+      responseDelete.headers.get("last-modified-ms"),
+    );
   });
 
   it("discover empty", async () => {

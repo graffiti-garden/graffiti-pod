@@ -63,16 +63,18 @@ export class StoreService {
   returnObject(
     object: GraffitiObjectBase,
     response: FastifyReply,
-    put: boolean = false,
+    type: "put" | "get" | "patch" | "delete",
   ): Object | void {
     // If putting and the previous object is blank issue "201: Created"
     if (
-      put &&
+      type === "put" &&
       Object.keys(object.value).length === 0 &&
       object.channels.length === 0 &&
       object.allowed === undefined
     ) {
       response.status(201);
+    } else if (type === "get" && object.tombstone === true) {
+      response.status(410);
     } else {
       response.status(200);
     }

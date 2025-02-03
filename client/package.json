@@ -42,9 +42,10 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@graffiti-garden/api": "^0.1.10",
-    "@graffiti-garden/implementation-local": "^0.2.2",
+    "@graffiti-garden/api": "^0.2.1",
+    "@graffiti-garden/implementation-local": "^0.2.6",
     "@graffiti-garden/solid-oidc-session-manager": "^0.0.7",
+    "@inrupt/solid-client": "^2.1.2",
     "ajv": "^8.17.1",
     "ajv-draft-04": "^1.0.0"
   }

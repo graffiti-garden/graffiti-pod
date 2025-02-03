@@ -14,9 +14,9 @@ import {
   GraffitiSolidOIDCSessionManager,
 } from "@graffiti-garden/solid-oidc-session-manager";
 import {
-  GraffitiSinglePod,
-  type GraffitiSinglePodOptions,
-} from "./server-interface/single-pod";
+  GraffitiSingleServer,
+  type GraffitiSingleServerOptions,
+} from "./single-server";
 import { GraffitiRemoteAndLocal } from "./remote-and-local";
 
 export class GraffitiFederated extends Graffiti {
@@ -28,9 +28,11 @@ export class GraffitiFederated extends Graffiti {
   patch: Graffiti["patch"];
   delete: Graffiti["delete"];
   discover: Graffiti["discover"];
-  synchronize: Graffiti["synchronize"];
-  listChannels: Graffiti["listChannels"];
-  listOrphans: Graffiti["listOrphans"];
+  recoverOrphans: Graffiti["recoverOrphans"];
+  channelStats: Graffiti["channelStats"];
+  synchronizeDiscover: Graffiti["synchronizeDiscover"];
+  synchronizeGet: Graffiti["synchronizeGet"];
+  synchronizeRecoverOrphans: Graffiti["synchronizeRecoverOrphans"];
   login: Graffiti["login"];
   logout: Graffiti["logout"];
   sessionEvents: Graffiti["sessionEvents"];
@@ -40,7 +42,7 @@ export class GraffitiFederated extends Graffiti {
    */
   constructor(options?: {
     local?: GraffitiLocalOptions;
-    remote?: GraffitiSinglePodOptions;
+    remote?: GraffitiSingleServerOptions;
     session?: GraffitiSolidOIDCSessionManagerOptions;
   }) {
     super();
@@ -54,7 +56,7 @@ export class GraffitiFederated extends Graffiti {
 
     const ajv = new Ajv({ strict: false });
     const graffitiLocal = new GraffitiLocalDatabase(options?.local, ajv);
-    const graffitiRemote = new GraffitiSinglePod(
+    const graffitiRemote = new GraffitiSingleServer(
       options?.remote ?? {
         source: "https://pod.graffiti.garden",
       },
@@ -75,8 +77,11 @@ export class GraffitiFederated extends Graffiti {
     this.patch = graffitiSynchronized.patch;
     this.delete = graffitiSynchronized.delete;
     this.discover = graffitiSynchronized.discover;
-    this.synchronize = graffitiSynchronized.synchronize;
-    this.listChannels = graffitiRemoteAndLocal.listChannels;
-    this.listOrphans = graffitiRemoteAndLocal.listOrphans;
+    this.recoverOrphans = graffitiSynchronized.recoverOrphans;
+    this.channelStats = graffitiRemoteAndLocal.channelStats;
+    this.synchronizeDiscover = graffitiSynchronized.synchronizeDiscover;
+    this.synchronizeGet = graffitiSynchronized.synchronizeGet;
+    this.synchronizeRecoverOrphans =
+      graffitiSynchronized.synchronizeRecoverOrphans;
   }
 }

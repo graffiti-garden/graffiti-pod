@@ -10,8 +10,8 @@ type GraffitiBase = Pick<
   | "patch"
   | "delete"
   | "discover"
-  | "listOrphans"
-  | "listChannels"
+  | "recoverOrphans"
+  | "channelStats"
 >;
 
 export class GraffitiRemoteAndLocal implements GraffitiBase {
@@ -22,7 +22,7 @@ export class GraffitiRemoteAndLocal implements GraffitiBase {
     this.remoteGraffiti = remoteGraffiti;
   }
 
-  protected isRemoteSession(session?: GraffitiSession) {
+  protected isRemoteSession(session?: GraffitiSession | null) {
     return session && session.actor.startsWith("http") && "fetch" in session;
   }
   protected isRemoteLocation(locationOrUri: string | GraffitiLocation) {
@@ -99,19 +99,19 @@ export class GraffitiRemoteAndLocal implements GraffitiBase {
     };
   };
 
-  listOrphans: Graffiti["listOrphans"] = (...args) => {
-    if (this.isRemoteSession(args[0])) {
-      return this.remoteGraffiti.listOrphans(...args);
+  recoverOrphans: Graffiti["recoverOrphans"] = (...args) => {
+    if (this.isRemoteSession(args[1])) {
+      return this.remoteGraffiti.recoverOrphans(...args);
     } else {
-      return this.localGraffiti.listOrphans(...args);
+      return this.localGraffiti.recoverOrphans(...args);
     }
   };
 
-  listChannels: Graffiti["listChannels"] = (...args) => {
+  channelStats: Graffiti["channelStats"] = (...args) => {
     if (this.isRemoteSession(args[0])) {
-      return this.remoteGraffiti.listChannels(...args);
+      return this.remoteGraffiti.channelStats(...args);
     } else {
-      return this.localGraffiti.listChannels(...args);
+      return this.localGraffiti.channelStats(...args);
     }
   };
 }

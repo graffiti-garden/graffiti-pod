@@ -15,6 +15,7 @@ import type {
 
 export async function catchResponseErrors(response: Response) {
   if (response.ok) return;
+  if (response.status === 410) return;
   let text = await response.text();
   try {
     const error = JSON.parse(text);
@@ -97,7 +98,7 @@ export async function parseGraffitiObjectResponse(
     actor: location.actor,
     source: location.source,
     name: location.name,
-    tombstone: !isGet,
+    tombstone: !isGet || response.status === 410,
     value,
     channels: parseEncodedStringArrayHeader(
       response.headers.get("channels"),
@@ -131,10 +132,11 @@ async function parseJSONLine<T>(
 
 const decoder = new TextDecoder();
 export async function* parseJSONLinesResponse<T>(
-  response: Response,
+  response_: Response | Promise<Response>,
   source: string,
   lineParser: (json: {}) => T | Promise<T>,
 ): GraffitiStream<T, void> {
+  const response = await response_;
   await catchResponseErrors(response);
   if (response.status === 204) {
     return;

@@ -1,13 +1,13 @@
 import type Ajv from "ajv-draft-04";
 import type { Graffiti } from "@graffiti-garden/api";
-import { GraffitiSinglePodCrud } from "./crud";
-import { GraffitiSinglePodDiscover } from "./discover";
+import { GraffitiSingleServerCrud } from "./crud";
+import { GraffitiSingleServerStreamers } from "./streamers";
 
-export interface GraffitiSinglePodOptions {
+export interface GraffitiSingleServerOptions {
   source: string;
 }
 
-export class GraffitiSinglePod
+export class GraffitiSingleServer
   implements
     Pick<
       Graffiti,
@@ -16,37 +16,31 @@ export class GraffitiSinglePod
       | "patch"
       | "delete"
       | "discover"
-      | "listOrphans"
-      | "listChannels"
+      | "recoverOrphans"
+      | "channelStats"
     >
 {
-  protected readonly crud: GraffitiSinglePodCrud;
-  protected readonly discoverClass: GraffitiSinglePodDiscover;
+  protected readonly crud: GraffitiSingleServerCrud;
+  protected readonly streamers: GraffitiSingleServerStreamers;
 
   put: Graffiti["put"];
   get: Graffiti["get"];
   patch: Graffiti["patch"];
   delete: Graffiti["delete"];
   discover: Graffiti["discover"];
+  recoverOrphans: Graffiti["recoverOrphans"];
+  channelStats: Graffiti["channelStats"];
 
-  constructor(options: GraffitiSinglePodOptions, ajv: Ajv) {
-    this.crud = new GraffitiSinglePodCrud(options.source, ajv);
-    this.discoverClass = new GraffitiSinglePodDiscover(options.source, ajv);
+  constructor(options: GraffitiSingleServerOptions, ajv: Ajv) {
+    this.crud = new GraffitiSingleServerCrud(options.source, ajv);
+    this.streamers = new GraffitiSingleServerStreamers(options.source, ajv);
 
     this.put = this.crud.put.bind(this.crud);
     this.get = this.crud.get.bind(this.crud);
     this.patch = this.crud.patch.bind(this.crud);
     this.delete = this.crud.delete.bind(this.crud);
-    this.discover = this.discoverClass.discover.bind(this.discoverClass);
+    this.discover = this.streamers.discover.bind(this.streamers);
+    this.recoverOrphans = this.streamers.recoverOrphans.bind(this.streamers);
+    this.channelStats = this.streamers.channelStats.bind(this.streamers);
   }
-
-  listChannels: Graffiti["listChannels"] = (...args) => {
-    // TODO
-    return (async function* () {})();
-  };
-
-  listOrphans: Graffiti["listOrphans"] = (...args) => {
-    // TODO
-    return (async function* () {})();
-  };
 }

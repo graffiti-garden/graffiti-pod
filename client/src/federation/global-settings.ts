@@ -1,3 +1,4 @@
+import type { JSONSchema4 } from "@graffiti-garden/api";
 import {
   getProfileAll,
   getThing,

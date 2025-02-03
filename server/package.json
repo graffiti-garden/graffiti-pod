@@ -13,7 +13,7 @@
     "test:cov": "vitest run --coverage"
   },
   "dependencies": {
-    "@graffiti-garden/api": "^0.2.1",
+    "@graffiti-garden/api": "^0.2.2",
     "@graffiti-garden/implementation-local": "^0.2.6",
     "@nestjs/common": "^10.4.15",
     "@nestjs/core": "^10.4.15",

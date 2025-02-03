@@ -15,7 +15,7 @@ export function encodeQueryParams(
   url: string,
   params: {
     channels?: string[];
-    allowed?: string[];
+    allowed?: string[] | null;
     schema?: JSONSchema4;
   },
 ) {

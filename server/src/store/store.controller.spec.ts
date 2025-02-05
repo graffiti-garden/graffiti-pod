@@ -8,7 +8,7 @@ import { randomBase64 as randomString } from "@graffiti-garden/implementation-lo
 import { solidLogin } from "../test/utils";
 import { StoreModule } from "./store.module";
 import { encodeURIArray } from "../params/params.utils";
-import { GraffitiPatch } from "@graffiti-garden/api";
+import type { GraffitiPatch } from "@graffiti-garden/api";
 
 describe("StoreController", () => {
   let app: NestFastifyApplication;

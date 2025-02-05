@@ -5,6 +5,7 @@ import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 import { visualizer } from "rollup-plugin-visualizer";
 import nodePolyfills from "rollup-plugin-node-polyfills";
+import copy from "rollup-plugin-copy";
 
 function createConfig(
   outputFile: string,
@@ -46,6 +47,27 @@ function createConfig(
         preferBuiltins: format === "cjs",
       }),
       commonjs(),
+      format === "es" &&
+        copy({
+          targets: [
+            {
+              src: "node_modules/@graffiti-garden/solid-oidc-session-manager/src/browser/index.html",
+              dest: "dist",
+            },
+            {
+              src: "node_modules/@graffiti-garden/solid-oidc-session-manager/src/browser/style.css",
+              dest: "dist",
+            },
+            {
+              src: "node_modules/@graffiti-garden/solid-oidc-session-manager/src/browser/rock-salt.woff2",
+              dest: "dist",
+            },
+            {
+              src: "node_modules/@graffiti-garden/solid-oidc-session-manager/src/browser/graffiti.jpg",
+              dest: "dist",
+            },
+          ],
+        }),
       ...(format === "es" ? [nodePolyfills()] : []),
       terser(),
       visualizer({ filename: `dist-stats/${outputFile}.html` }),

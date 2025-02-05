@@ -19,6 +19,8 @@ import {
 } from "./single-server";
 import { GraffitiRemoteAndLocal } from "./remote-and-local";
 
+export type * from "./types";
+
 export class GraffitiFederated extends Graffiti {
   locationToUri = locationToUri;
   uriToLocation = uriToLocation;

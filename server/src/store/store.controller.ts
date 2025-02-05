@@ -19,11 +19,10 @@ import { Allowed } from "../params/allowed.decorator";
 import type { FastifyReply } from "fastify";
 import { Schema } from "../params/schema.decorator";
 import { StoreService } from "./store.service";
-import {
-  GraffitiErrorUnauthorized,
-  type Graffiti,
-  type GraffitiObjectBase,
-  type GraffitiPatch,
+import type {
+  Graffiti,
+  GraffitiObjectBase,
+  GraffitiPatch,
 } from "@graffiti-garden/api";
 import {
   GraffitiLocalDatabase,
@@ -46,7 +45,7 @@ export class StoreController {
     @Inject("GRAFFITI_POUCHDB_OPTIONS")
     private readonly options?: GraffitiLocalOptions,
   ) {
-    this.source = options?.sourceName ?? "http://localhost:3000";
+    this.source = this.options?.sourceName ?? "http://localhost:3000";
     options = {
       ...options,
       sourceName: this.source,

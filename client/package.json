@@ -1,28 +1,27 @@
 {
   "name": "@graffiti-garden/implementation-federated",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Federated implementation of the Graffiti API",
-  "types": "./dist/src/index.d.ts",
+  "types": "./dist/client/src/index.d.ts",
   "module": "./dist/index.js",
   "browser": "./dist/index.browser.js",
   "main": "./dist/index.cjs.js",
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/src/index.d.ts",
-        "node": "./dist/index.cjs.js",
+        "types": "./dist/client/src/index.d.ts",
         "default": "./dist/index.js"
       },
       "require": {
-        "types": "./dist/src/index.d.ts",
+        "types": "./dist/client/src/index.d.ts",
         "default": "./dist/index.cjs.js"
       }
     }
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest --coverage",
+    "test": "vitest run --no-file-parallelism",
+    "test:watch": "vitest --no-file-parallelism",
+    "test:coverage": "vitest --no-file-parallelism --coverage",
     "build": "rollup -c rollup.config.ts --configPlugin rollup-plugin-typescript2",
     "prepublishOnly": "npm install && npm test && npm run build"
   },
@@ -43,8 +42,8 @@
     "vitest": "^1.6.0"
   },
   "dependencies": {
-    "@graffiti-garden/api": "^0.2.1",
-    "@graffiti-garden/implementation-local": "^0.2.6",
+    "@graffiti-garden/api": "^0.2.7",
+    "@graffiti-garden/implementation-local": "^0.2.10",
     "@graffiti-garden/solid-oidc-session-manager": "^0.0.7",
     "@inrupt/solid-client": "^2.1.2",
     "ajv": "^8.17.1",

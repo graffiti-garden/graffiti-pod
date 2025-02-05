@@ -4,6 +4,7 @@ import {
   graffitiCRUDTests,
   graffitiLocationTests,
   graffitiSynchronizeTests,
+  graffitiOrphanTests,
 } from "@graffiti-garden/api/tests";
 import { GraffitiFederated } from "./index";
 import * as secrets1 from "../../.secrets1.json";
@@ -34,6 +35,11 @@ describe("Remote sessions", () => {
     () => session1,
     () => session2,
   );
+  graffitiOrphanTests(
+    () => new GraffitiFederated(options),
+    () => session1,
+    () => session2,
+  );
 });
 
 // Local tests as well
@@ -49,6 +55,11 @@ describe("Local sessions", () => {
     () => ({ actor: "local" + randomBase64() }),
   );
   graffitiSynchronizeTests(
+    () => new GraffitiFederated(options),
+    () => ({ actor: "local" + randomBase64() }),
+    () => ({ actor: "local" + randomBase64() }),
+  );
+  graffitiOrphanTests(
     () => new GraffitiFederated(options),
     () => ({ actor: "local" + randomBase64() }),
     () => ({ actor: "local" + randomBase64() }),

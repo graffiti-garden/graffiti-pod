@@ -6,7 +6,11 @@
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "declaration": true,
+    "declarationMap": true,
+    "declarationDir": "./dist/",
+    "rootDir": "."
   },
   "include": ["src"],
   "exclude": ["src/federation"]

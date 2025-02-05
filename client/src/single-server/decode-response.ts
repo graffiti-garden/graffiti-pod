@@ -12,6 +12,7 @@ import type {
   GraffitiLocation,
   GraffitiObjectBase,
 } from "@graffiti-garden/api";
+import { strConcat } from "ajv/dist/compile/codegen";
 
 export async function catchResponseErrors(response: Response) {
   if (response.ok) return;
@@ -131,6 +132,7 @@ async function parseJSONLine<T>(
 }
 
 const decoder = new TextDecoder();
+const newLineUint8 = "\n".charCodeAt(0);
 export async function* parseJSONLinesResponse<T>(
   response_: Response | Promise<Response>,
   source: string,
@@ -149,24 +151,34 @@ export async function* parseJSONLinesResponse<T>(
     throw new Error("Failed to get a reader from the server's response body");
   }
 
-  let buffer = "";
+  let buffer = new Uint8Array();
   while (true) {
     const { value, done } = await reader.read();
 
     if (value) {
-      buffer += decoder.decode(value);
-      const parts = buffer.split("\n");
-      buffer = parts.pop() ?? "";
-      for (const part of parts) {
-        yield (await parseJSONLine(part, lineParser, source))!;
+      const concatenated = new Uint8Array(buffer.length + value.length);
+      concatenated.set(buffer);
+      concatenated.set(value, buffer.length);
+
+      let start = 0;
+      let end: number;
+      while (start < concatenated.length) {
+        end = concatenated.indexOf(newLineUint8, start);
+        if (end === -1) break;
+        const lineBuffer = concatenated.slice(start, end);
+        const line = decoder.decode(lineBuffer);
+        yield (await parseJSONLine(line, lineParser, source))!;
+        start = end + 1;
       }
+
+      buffer = concatenated.slice(start);
     }
 
     if (done) break;
   }
 
   // Clear the buffer
-  if (buffer) {
-    yield (await parseJSONLine(buffer, lineParser, source))!;
+  if (buffer.length) {
+    yield (await parseJSONLine(decoder.decode(buffer), lineParser, source))!;
   }
 }

@@ -5,9 +5,10 @@ import * as secrets2 from "../../../.secrets2.json";
 import Ajv from "ajv-draft-04";
 import { solidLogin } from "../test-utils";
 
-const session1 = await solidLogin(secrets1);
-const session2 = await solidLogin(secrets2);
 const ajv = new Ajv({ strict: false });
+
+const session1 = solidLogin(secrets1);
+const session2 = solidLogin(secrets2);
 
 graffitiCRUDTests(
   () => new GraffitiSingleServerCrud("http://localhost:3000", ajv),

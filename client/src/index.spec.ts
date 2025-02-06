@@ -12,11 +12,11 @@ import * as secrets2 from "../../.secrets2.json";
 import { solidLogin } from "./test-utils";
 import { randomBase64 } from "@graffiti-garden/implementation-local/utilities";
 
-const session1 = await solidLogin(secrets1);
-const session2 = await solidLogin(secrets2);
-
 const source = "http://localhost:3000";
 const options = { remote: { source } };
+
+const session1 = solidLogin(secrets1);
+const session2 = solidLogin(secrets2);
 
 describe("Remote sessions", () => {
   graffitiDiscoverTests(

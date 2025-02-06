@@ -9,13 +9,13 @@ import * as secrets1 from "../../../.secrets1.json";
 import * as secrets2 from "../../../.secrets2.json";
 import Ajv from "ajv-draft-04";
 import { solidLogin } from "../test-utils";
-import { describe } from "vitest";
 
-const session1 = await solidLogin(secrets1);
-const session2 = await solidLogin(secrets2);
 const ajv = new Ajv({ strict: false });
 
 const source = "http://localhost:3000";
+
+const session1 = solidLogin(secrets1);
+const session2 = solidLogin(secrets2);
 
 graffitiDiscoverTests(
   () => new GraffitiSingleServer({ source }, ajv),

@@ -2,18 +2,22 @@
 
 ## TODO:
 
-- documentation!!
-- Refactor pod announcements into its own file.
-  pod announcments should also handle access control lists
-  (not leaking publication to a channel via the pod announcement)
-  and should also handle deletions (if a user deletes something)
-  Something along the lines of
-    - `updatePodAnnouncements(objectBefore: GraffitiObject|undefined, objectAfter: GraffitiObject|undefined): void`
-  During this refactor, perhaps there should be a seperate index.ts file
-  specifically "raw" REST/discover operations that doesn't take into
-  account pod announcements or delegation verification.
-- Add forwarding rules to webId settings.
-- less important:
-  - more testing
-  - local changes for listChannels / listOphans
-  - persist the cache across reloads + cache purging
+- Restore some of the federation details that got lost in the refactor.
+  - Global settings:
+    - Allow a user to publish a link to a GraffitiObject to their
+      webId. Others can view this as their settings.
+      Necessary for knowing whether a user has authorized a pod to
+      publish content on their behalf and for setting up forwarding
+      rules if a person moves pods.
+  - Delegation:
+    - Implents delegation on top of the global settings.
+  - Announcements:
+    - Announce the existince of a smaller pod on a larger pod.
+      Replaces a seperate tracker service.
+    - Pod announcements should also handle allowed lists
+      (not leaking publication to a channel via the pod announcement)
+      and should also handle deletions (if a user deletes something).
+      Somethng along the lines of
+      `updatePodAnnouncements(objectBefore: GraffitiObject|undefined, objectAfter: GraffitiObject|undefined): void`
+  - Caching:
+    - For streamables.

@@ -12,6 +12,7 @@ const headers = [
   "Allowed",
   "Channels",
   "Last-Modified",
+  "Last-Modified-Ms",
   "Cache-Control",
   "Vary",
   "A-IM",
